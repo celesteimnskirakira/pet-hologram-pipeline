@@ -4,6 +4,15 @@
 
 用户上传宠物正面照 → 生成纯黑背景正视图（严格保留原宠物特征）→ 生成 5 秒头尾循环的卧趴睡觉视频。
 
+## 微雪 AMOLED USB 播放器
+
+生成的视频可以通过配套 macOS 拖放工具直接发送到 **Waveshare ESP32-S3-Touch-AMOLED-1.75**，无需拔出 microSD：
+
+- [下载与使用 Holo Video Uploader](holo-video-uploader/README.md)
+- 拖入视频后自动转换为 360×360 / 10 FPS / MJPEG AVI
+- USB 上传完成后立即 466×466 全屏循环播放
+- 可在应用列表中选择并切换视频
+
 实际是四步，中间多了一步睡姿桥接帧。原因见下面「为什么多了一步」。
 
 视频用 Seedance 2.0 mini，走火山方舟官方通道，按当前促销价 **480p 1:1 一条约 0.44 元**。
