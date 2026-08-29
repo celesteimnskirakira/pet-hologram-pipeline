@@ -44,6 +44,40 @@ class LocalBoothTests(unittest.TestCase):
         with self.assertRaisesRegex(device_bridge.DeviceBridgeError, "USB 串口不存在"):
             device_bridge.find_port("/tmp/definitely-not-a-real-serial-port")
 
+    def test_usb_upload_retries_without_regenerating_video(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            avi = Path(raw) / "current.avi"
+            avi.write_bytes(b"valid-enough-for-bridge-test")
+            with (
+                mock.patch.object(device_bridge, "find_port", return_value="/dev/fake"),
+                mock.patch.object(
+                    device_bridge,
+                    "_upload_once",
+                    side_effect=[device_bridge.DeviceBridgeError("chunk timeout"), None],
+                ) as upload_once,
+                mock.patch.object(device_bridge.time, "sleep"),
+            ):
+                port = device_bridge.upload_avi(avi)
+            self.assertEqual(port, "/dev/fake")
+            self.assertEqual(upload_once.call_count, 2)
+
+    def test_usb_upload_reports_error_only_after_all_retries(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            avi = Path(raw) / "current.avi"
+            avi.write_bytes(b"valid-enough-for-bridge-test")
+            with (
+                mock.patch.object(device_bridge, "find_port", return_value="/dev/fake"),
+                mock.patch.object(
+                    device_bridge,
+                    "_upload_once",
+                    side_effect=device_bridge.DeviceBridgeError("chunk timeout"),
+                ) as upload_once,
+                mock.patch.object(device_bridge.time, "sleep"),
+            ):
+                with self.assertRaisesRegex(device_bridge.DeviceBridgeError, "连续重试 4 次"):
+                    device_bridge.upload_avi(avi)
+            self.assertEqual(upload_once.call_count, 4)
+
     def test_wifi_ip_wins_over_vpn_route(self) -> None:
         completed = SimpleNamespace(stdout="172.20.10.2\n")
         with mock.patch.object(server.subprocess, "run", return_value=completed):

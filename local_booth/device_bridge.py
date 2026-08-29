@@ -20,7 +20,12 @@ from typing import Callable
 
 
 ProgressHook = Callable[[str, float], None]
+# The current ESP32-S3 USB CDC receive buffer drops data when a host write is
+# larger than a few hundred bytes. Keep each write aligned with the firmware's
+# acknowledged 128-byte unit; reliability comes from whole-file retries below.
 CHUNK_BYTES = 128
+MAX_UPLOAD_ATTEMPTS = 4
+RETRY_DELAY_SECONDS = 1.0
 
 
 class DeviceBridgeError(RuntimeError):
@@ -124,6 +129,9 @@ def _wait_for_line(device, marker: bytes, timeout: float) -> bytes:
         recent.extend(line)
         if marker in line:
             return line
+        if b"[USB] upload failed" in line or b"[USB] invalid size" in line:
+            tail = recent.decode("utf-8", "replace").strip()
+            raise DeviceBridgeError(f"微雪拒绝了本次传输：{tail}")
         if len(recent) > 2048:
             del recent[:-2048]
     tail = recent.decode("utf-8", "replace").strip()
@@ -133,11 +141,27 @@ def _wait_for_line(device, marker: bytes, timeout: float) -> bytes:
     )
 
 
-def upload_avi(
-    avi: str | Path,
-    port: str | None = None,
-    on_progress: ProgressHook = _noop,
-) -> str:
+def _resync_serial(device) -> None:
+    """Clear a command line polluted by bytes left after an interrupted upload."""
+    device.reset_input_buffer()
+    device.reset_output_buffer()
+    # A failed binary transfer can leave the firmware command parser holding a
+    # partial line. Two empty lines terminate and clear it before UPLOAD2.
+    device.write(b"\n")
+    device.flush()
+    time.sleep(0.15)
+    device.write(b"\n")
+    device.flush()
+    time.sleep(0.15)
+    device.reset_input_buffer()
+
+
+def _upload_once(
+    path: Path,
+    total: int,
+    device_path: str,
+    on_progress: ProgressHook,
+) -> None:
     try:
         import serial
     except ImportError as exc:
@@ -145,19 +169,12 @@ def upload_avi(
             "缺少 pyserial。请双击 setup_local_booth.command 完成安装。"
         ) from exc
 
-    path = Path(avi).expanduser().resolve()
-    if not path.is_file():
-        raise DeviceBridgeError(f"AVI 不存在：{path}")
-    total = path.stat().st_size
-    device_path = find_port(port)
-    on_progress("连接微雪", 0.0)
-
     try:
         with serial.Serial(device_path, 115200, timeout=0.25, write_timeout=10) as device:
-            device.reset_input_buffer()
+            _resync_serial(device)
             device.write(f"UPLOAD2 {total}\n".encode("ascii"))
             device.flush()
-            _wait_for_line(device, b"[USB] ready2", 10)
+            _wait_for_line(device, b"[USB] ready2", 15)
 
             sent = 0
             with path.open("rb") as source:
@@ -168,7 +185,7 @@ def upload_avi(
                     device.write(chunk)
                     device.flush()
                     sent += len(chunk)
-                    _wait_for_line(device, f"[USB] ack {sent}".encode("ascii"), 10)
+                    _wait_for_line(device, f"[USB] ack {sent}".encode("ascii"), 15)
                     on_progress("USB 推送", sent / total)
             _wait_for_line(device, b"[USB] upload ok", 30)
     except DeviceBridgeError:
@@ -176,8 +193,35 @@ def upload_avi(
     except Exception as exc:  # serial errors vary by pyserial version
         raise DeviceBridgeError(f"USB 推送失败：{exc}") from exc
 
-    on_progress("微雪正在播放", 1.0)
-    return device_path
+
+def upload_avi(
+    avi: str | Path,
+    port: str | None = None,
+    on_progress: ProgressHook = _noop,
+) -> str:
+    path = Path(avi).expanduser().resolve()
+    if not path.is_file():
+        raise DeviceBridgeError(f"AVI 不存在：{path}")
+    total = path.stat().st_size
+    device_path = find_port(port)
+
+    errors: list[str] = []
+    for attempt in range(1, MAX_UPLOAD_ATTEMPTS + 1):
+        stage = "连接微雪" if attempt == 1 else f"USB 自动重试 {attempt}/{MAX_UPLOAD_ATTEMPTS}"
+        on_progress(stage, 0.0)
+        try:
+            _upload_once(path, total, device_path, on_progress)
+            on_progress("微雪正在播放", 1.0)
+            return device_path
+        except DeviceBridgeError as exc:
+            errors.append(str(exc))
+            if attempt == MAX_UPLOAD_ATTEMPTS:
+                break
+            time.sleep(RETRY_DELAY_SECONDS)
+
+    raise DeviceBridgeError(
+        f"USB 连续重试 {MAX_UPLOAD_ATTEMPTS} 次仍失败；最后错误：{errors[-1]}"
+    )
 
 
 def convert_and_upload(
