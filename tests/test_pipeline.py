@@ -136,6 +136,17 @@ class ImagingTests(unittest.TestCase):
         with self.assertRaises(imaging.ImageError):
             imaging.load_rgb(bogus)
 
+    def test_human_portrait_is_rejected_before_generation(self):
+        traits = prompts.PetTraits(
+            raw={"species": "other", "breed_guess": "human", "coat_length": "not applicable"}
+        )
+        with self.assertRaisesRegex(imaging.ImageError, "请上传猫、狗或其他宠物"):
+            pipeline.ensure_pet_subject(traits)
+
+    def test_other_nonhuman_pet_is_allowed(self):
+        traits = prompts.PetTraits(raw={"species": "other", "breed_guess": "rabbit"})
+        pipeline.ensure_pet_subject(traits)
+
     def test_background_score_separates_black_from_colored(self):
         black = imaging.load_rgb(make_black_bg_still(self.tmp / "black.png"))
         colored = imaging.load_rgb(make_pet_photo(self.tmp / "colored.png", size=512))

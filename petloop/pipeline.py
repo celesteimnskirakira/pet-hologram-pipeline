@@ -109,6 +109,18 @@ def extract_traits(
     return traits
 
 
+def ensure_pet_subject(traits: prompts.PetTraits) -> None:
+    """Reject obvious human portraits before any paid image/video generation."""
+    raw = traits.raw
+    identity = " ".join(
+        str(raw.get(key, "")).lower()
+        for key in ("species", "breed_guess", "coat_length", "coat_pattern")
+    )
+    human_markers = ("human", "person", "man subject", "woman subject")
+    if any(marker in identity for marker in human_markers):
+        raise imaging.ImageError("检测到人物照片。请上传猫、狗或其他宠物的清晰照片。")
+
+
 def generate_still(
     provider: providers.ArkProvider | providers.AgnesProvider,
     reference: Image.Image,
@@ -325,6 +337,7 @@ def run(
 
     # Step 1.5: lock identity into structured traits.
     traits = extract_traits(provider, source)
+    ensure_pet_subject(traits)
     if spec.pet_kind != "auto":
         traits.raw["species"] = spec.pet_kind
     artifacts.traits = traits.raw
