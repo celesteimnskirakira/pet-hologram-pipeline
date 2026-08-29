@@ -1,0 +1,11 @@
+#!/bin/zsh
+
+LOCAL_DIR="${0:A:h:h:h:h}"
+START_SCRIPT="$LOCAL_DIR/start_local_booth.command"
+
+if [[ ! -f "$START_SCRIPT" ]]; then
+  /usr/bin/osascript -e 'display alert "启动失败" message "Local Holo Booth.app 必须留在 local_booth 文件夹内。" as critical'
+  exit 1
+fi
+
+/usr/bin/open -a Terminal "$START_SCRIPT"
