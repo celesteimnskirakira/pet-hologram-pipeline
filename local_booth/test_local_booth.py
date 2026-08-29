@@ -47,6 +47,10 @@ class LocalBoothTests(unittest.TestCase):
             server.SETTINGS.clear()
             server.SETTINGS.update(old_settings)
 
+    def test_console_refreshes_qr_when_wifi_changes(self) -> None:
+        self.assertIn("d.visitor_url!==lastVisitorUrl", server.CONSOLE_HTML)
+        self.assertIn("qrImage.src='/api/qr.svg?t='", server.CONSOLE_HTML)
+
     def test_job_persistence_is_local(self) -> None:
         old = server.RUNS_DIR
         try:
