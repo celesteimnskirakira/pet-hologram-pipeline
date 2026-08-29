@@ -1,0 +1,9 @@
+# Secrets. Never commit the real key.
+.env
+
+# Generated artifacts and uploads.
+runs/
+
+__pycache__/
+*.pyc
+.DS_Store
