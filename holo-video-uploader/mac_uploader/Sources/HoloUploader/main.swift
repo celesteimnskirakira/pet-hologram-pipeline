@@ -7,6 +7,13 @@ private let supportedExtensions: Set<String> = [
     "mp4", "mov", "m4v", "avi", "mkv", "webm"
 ]
 
+private enum VideoLayout {
+    case quad
+    case single
+
+    var fileSuffix: String { self == .quad ? "-quad" : "-single" }
+}
+
 private enum HoloError: LocalizedError {
     case message(String)
 
@@ -226,17 +233,17 @@ private final class SerialUploader {
             throw HoloError.message("无法读取视频大小")
         }
         let totalBytes = total.intValue
-        try send(fd, data: Data("UPLOAD \(totalBytes)\n".utf8))
-        try waitFor("[USB] ready", fd: fd, timeout: 10)
+        try send(fd, data: Data("UPLOAD2 \(totalBytes)\n".utf8))
+        try waitFor("[USB] ready2", fd: fd, timeout: 10)
 
         let input = try FileHandle(forReadingFrom: file)
         defer { try? input.close() }
         var sent = 0
-        while let chunk = try input.read(upToCount: 256), !chunk.isEmpty {
+        while let chunk = try input.read(upToCount: 128), !chunk.isEmpty {
             try send(fd, data: chunk)
             sent += chunk.count
+            try waitFor("[USB] ack \(sent)", fd: fd, timeout: 10)
             progress(Double(sent) / Double(totalBytes))
-            usleep(3_000)
         }
         try waitFor("[USB] upload ok", fd: fd, timeout: 30)
         progress(1)
@@ -298,6 +305,7 @@ private final class MainController: NSObject, NSTableViewDataSource, NSTableView
     private let status = NSTextField(labelWithString: "连接设备后，把视频拖入窗口")
     private let progress = NSProgressIndicator()
     private let playButton = NSButton(title: "播放到设备", target: nil, action: nil)
+    private let layoutPopup = NSPopUpButton()
     private let backendButton = NSButton(title: "从后端接收", target: nil, action: nil)
     private let endpointField = NSTextField()
     private let tokenField = NSSecureTextField()
@@ -316,6 +324,7 @@ private final class MainController: NSObject, NSTableViewDataSource, NSTableView
         buildInterface()
         try? FileManager.default.createDirectory(at: libraryURL, withIntermediateDirectories: true)
         reloadLibrary()
+        layoutPopup.selectItem(at: UserDefaults.standard.integer(forKey: "videoLayout"))
         endpointField.stringValue = UserDefaults.standard.string(forKey: "backendEndpoint") ?? ""
         autoReceive.state = UserDefaults.standard.bool(forKey: "backendAutoReceive") ? .on : .off
         backendTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
@@ -350,6 +359,10 @@ private final class MainController: NSObject, NSTableViewDataSource, NSTableView
         playButton.target = self
         playButton.action = #selector(playSelected)
         playButton.keyEquivalent = "\r"
+
+        layoutPopup.addItems(withTitles: ["四面全息（头朝外）", "单画面全屏"])
+        layoutPopup.target = self
+        layoutPopup.action = #selector(layoutChanged)
 
         endpointField.placeholderString = "https://backend.example.com/api/device/next"
         tokenField.placeholderString = "Bearer Token（可选，本次运行有效）"
@@ -395,7 +408,8 @@ private final class MainController: NSObject, NSTableViewDataSource, NSTableView
         status.textColor = .secondaryLabelColor
         status.translatesAutoresizingMaskIntoConstraints = false
 
-        let buttons = NSStackView(views: [importButton, playButton])
+        let layoutLabel = NSTextField(labelWithString: "新视频布局：")
+        let buttons = NSStackView(views: [importButton, playButton, layoutLabel, layoutPopup])
         buttons.spacing = 10
         buttons.translatesAutoresizingMaskIntoConstraints = false
 
@@ -478,6 +492,14 @@ private final class MainController: NSObject, NSTableViewDataSource, NSTableView
         if panel.runModal() == .OK { importVideos(panel.urls) }
     }
 
+    @objc private func layoutChanged() {
+        UserDefaults.standard.set(layoutPopup.indexOfSelectedItem, forKey: "videoLayout")
+    }
+
+    private var selectedLayout: VideoLayout {
+        layoutPopup.indexOfSelectedItem == 0 ? .quad : .single
+    }
+
     private func safeName(for url: URL) -> String {
         let base = url.deletingPathExtension().lastPathComponent
         let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_ "))
@@ -493,15 +515,17 @@ private final class MainController: NSObject, NSTableViewDataSource, NSTableView
             status.stringValue = "请选择 MP4、MOV、AVI、MKV 或 WebM 视频"
             return
         }
+        let layout = selectedLayout
         setBusy(true, text: "准备转换…")
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self else { return }
             do {
                 var lastOutput: URL?
                 for (index, input) in accepted.enumerated() {
-                    let output = self.libraryURL.appendingPathComponent("\(self.safeName(for: input)).avi")
+                    let output = self.libraryURL.appendingPathComponent(
+                        "\(self.safeName(for: input))\(layout.fileSuffix).avi")
                     self.updateStatus("转换 \(index + 1)/\(accepted.count)：\(input.lastPathComponent)", progress: 0)
-                    try self.convert(input: input, output: output)
+                    try self.convert(input: input, output: output, layout: layout)
                     self.updateStatus("USB 上传：\(input.lastPathComponent)", progress: 0)
                     try SerialUploader().upload(file: output) { value in
                         self.updateStatus("USB 上传：\(Int(value * 100))%", progress: value)
@@ -545,6 +569,7 @@ private final class MainController: NSObject, NSTableViewDataSource, NSTableView
         }
 
         let token = tokenField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        let layout = selectedLayout
         UserDefaults.standard.set(address, forKey: "backendEndpoint")
         setBusy(true, text: "正在检查后端 MP4…")
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
@@ -574,9 +599,10 @@ private final class MainController: NSObject, NSTableViewDataSource, NSTableView
                 let incoming = temporaryDirectory.appendingPathComponent(incomingName)
                 try item.data.write(to: incoming, options: .atomic)
 
-                let output = self.libraryURL.appendingPathComponent("\(self.safeName(for: incoming)).avi")
+                let output = self.libraryURL.appendingPathComponent(
+                    "\(self.safeName(for: incoming))\(layout.fileSuffix).avi")
                 self.updateStatus("后端视频转换中…", progress: 0)
-                try self.convert(input: incoming, output: output)
+                try self.convert(input: incoming, output: output, layout: layout)
                 self.updateStatus("后端视频 USB 上传中…", progress: 0)
                 try SerialUploader().upload(file: output) { value in
                     self.updateStatus("USB 上传：\(Int(value * 100))%", progress: value)
@@ -604,19 +630,38 @@ private final class MainController: NSObject, NSTableViewDataSource, NSTableView
         }
     }
 
-    private func convert(input: URL, output: URL) throws {
+    private func convert(input: URL, output: URL, layout: VideoLayout) throws {
         guard let ffmpeg = Bundle.main.url(forResource: "ffmpeg", withExtension: nil) else {
             throw HoloError.message("应用中缺少 FFmpeg")
         }
         try? FileManager.default.removeItem(at: output)
         let process = Process()
         process.executableURL = ffmpeg
-        process.arguments = [
-            "-hide_banner", "-loglevel", "error", "-y", "-i", input.path,
-            "-vf", "scale=360:360:force_original_aspect_ratio=increase,crop=360:360,fps=10",
-            "-an", "-c:v", "mjpeg", "-q:v", "5", "-pix_fmt", "yuvj420p",
+        var arguments = ["-hide_banner", "-loglevel", "error", "-y", "-i", input.path]
+        if layout == .quad {
+            let filter = """
+            [0:v]fps=10,scale=360:360:force_original_aspect_ratio=increase,crop=360:360,hflip,split=4[a][b][c][d];
+            [a]scale=150:150[top];
+            [b]scale=150:150,hflip,vflip[bottom];
+            [c]scale=150:150,transpose=2[left];
+            [d]scale=150:150,transpose=1[right];
+            color=c=black:s=360x360:r=10[canvas];
+            [canvas][top]overlay=105:0:shortest=1[q1];
+            [q1][bottom]overlay=105:210:shortest=1[q2];
+            [q2][left]overlay=0:105:shortest=1[q3];
+            [q3][right]overlay=210:105:shortest=1[out]
+            """.replacingOccurrences(of: "\n", with: "")
+            arguments += ["-filter_complex", filter, "-map", "[out]"]
+        } else {
+            arguments += [
+                "-vf", "scale=360:360:force_original_aspect_ratio=increase,crop=360:360,fps=10"
+            ]
+        }
+        arguments += [
+            "-an", "-c:v", "mjpeg", "-q:v", "7", "-pix_fmt", "yuvj420p",
             "-vtag", "MJPG", "-f", "avi", output.path
         ]
+        process.arguments = arguments
         let errors = Pipe()
         process.standardOutput = FileHandle.nullDevice
         process.standardError = errors
@@ -659,6 +704,7 @@ private final class MainController: NSObject, NSTableViewDataSource, NSTableView
         status.stringValue = text
         progress.doubleValue = busy ? progress.doubleValue : 0
         table.isEnabled = !busy
+        layoutPopup.isEnabled = !busy
         backendButton.isEnabled = !busy
         endpointField.isEnabled = !busy
         tokenField.isEnabled = !busy

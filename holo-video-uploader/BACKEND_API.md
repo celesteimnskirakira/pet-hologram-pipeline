@@ -2,6 +2,11 @@
 
 Holo Video Uploader supports either of these HTTPS responses.
 
+The backend should preferably return a normal single-view MP4. The app defaults
+to the verified four-sided pyramid layout with the subject's head facing each
+outer edge. If the backend already returns a four-way composite, the operator
+must select `单画面全屏` in the app to avoid composing it a second time.
+
 ## Option A: JSON queue response
 
 ```http
