@@ -20,6 +20,10 @@ class LocalBoothTests(unittest.TestCase):
         self.assertNotIn("HoloUploader", imported)
         self.assertNotIn("mac_uploader", imported)
 
+    def test_mobile_upload_allows_photo_library(self) -> None:
+        self.assertIn('type=file accept="image/*"', server.VISITOR_HTML)
+        self.assertNotIn("capture=", server.VISITOR_HTML)
+
     def test_device_output_stays_in_local_job_directory(self) -> None:
         path = server.RUNS_DIR / "abc123" / "device" / "current.avi"
         self.assertTrue(path.is_relative_to(server.LOCAL_ROOT))

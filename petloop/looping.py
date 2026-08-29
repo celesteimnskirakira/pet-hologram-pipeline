@@ -9,6 +9,7 @@ repairs it, so "head/tail looping" is a verified property instead of a hope.
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import tempfile
@@ -24,6 +25,12 @@ class FFmpegMissing(RuntimeError):
 
 def _require(tool: str) -> str:
     path = shutil.which(tool)
+    if not path:
+        configured = os.environ.get("FFMPEG_PATH", "").strip()
+        if configured:
+            candidate = Path(configured).with_name(tool)
+            if candidate.is_file():
+                path = str(candidate)
     if not path:
         raise FFmpegMissing(f"{tool} not found on PATH. Install ffmpeg to enable loop finishing.")
     return path

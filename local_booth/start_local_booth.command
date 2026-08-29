@@ -12,6 +12,9 @@ cd "$REPO_DIR"
 if [[ -z "${FFMPEG_PATH:-}" && -x "$REPO_DIR/../tools/bin/ffmpeg" ]]; then
   export FFMPEG_PATH="$REPO_DIR/../tools/bin/ffmpeg"
 fi
+if [[ -n "${FFMPEG_PATH:-}" ]]; then
+  export PATH="${FFMPEG_PATH:h}:$PATH"
+fi
 
 if [[ ! -x "$PYTHON" ]]; then
   echo "首次使用请先双击 local_booth/setup_local_booth.command"
