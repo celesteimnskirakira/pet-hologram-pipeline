@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import Script from "next/script";
-import { Inter } from "next/font/google";
 import { EazoProvider } from "@eazo/sdk/react";
 import { cn } from "@/utils/utils";
 import { Toaster } from "@/components/ui/sonner";
@@ -10,8 +9,6 @@ import { I18nProvider } from "@/components/i18n/i18n-provider";
 import { LocaleSyncEffect } from "@/components/i18n/locale-sync-effect";
 import { PreviewInspector } from "@/components/eazo/preview-inspector";
 import { getServerLocale } from "@/lib/i18n/server-preference";
-
-const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
 const SITE_URL = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
@@ -82,7 +79,7 @@ export default async function RootLayout({
     <html
       lang={locale}
       suppressHydrationWarning
-      className={cn("h-full antialiased", "font-sans", inter.variable)}
+      className={cn("h-full antialiased", "font-sans")}
     >
       <body
         className="h-full flex flex-col"

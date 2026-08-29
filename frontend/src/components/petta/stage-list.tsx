@@ -10,10 +10,12 @@ export interface StageItem {
 }
 
 const ORDER: GenerationStage[] = [
-  "uploading",
-  "creating_task",
+  "queued",
+  "validating",
+  "generating_still",
   "generating_video",
-  "sending_hardware",
+  "post_processing",
+  "delivering",
 ];
 
 /**
@@ -29,7 +31,7 @@ export function StageList({
   current: GenerationStage;
 }) {
   const currentIndex =
-    current === "success" ? ORDER.length : ORDER.indexOf(current);
+    current === "completed" ? ORDER.length : ORDER.indexOf(current);
 
   // Reveal only reached stages (0..currentIndex), newest at the bottom.
   const visible = stages.filter((_, i) => i <= currentIndex);

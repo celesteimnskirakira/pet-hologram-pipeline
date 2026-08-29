@@ -75,6 +75,14 @@ export default function DonePage() {
         <p className="mx-auto max-w-[18em] text-sm leading-relaxed text-[var(--petta-muted)]">
           {t("petta.done.sub")}
         </p>
+        {flow.displayCode && (
+          <p className="text-sm font-semibold text-[var(--petta-cream)]">展示码：{flow.displayCode}</p>
+        )}
+        {flow.selectedAction && (
+          <p className="text-sm text-[var(--petta-muted)]">
+            {t("petta.done.selectedAction", { action: flow.selectedAction })}
+          </p>
+        )}
       </section>
 
       <footer className="flex justify-center" data-el="done-actions">

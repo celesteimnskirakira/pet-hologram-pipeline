@@ -7,21 +7,23 @@ import { AmbientShell } from "@/components/petta/ambient-shell";
 import { PettaOrbLoader } from "@/components/petta/orb-loader";
 import { StageList, type StageItem } from "@/components/petta/stage-list";
 import { getGeneration, type GenerationStage } from "@/lib/api";
-import { useFlow } from "@/stores/flow-store";
+import { flowStore, useFlow } from "@/stores/flow-store";
 export default function GeneratingPage() {
   const { t } = useTranslation();
   const router = useRouter();
   const flow = useFlow();
   const [progress, setProgress] = useState(0);
-  const [stage, setStage] = useState<GenerationStage>("uploading");
+  const [stage, setStage] = useState<GenerationStage>("queued");
   const [failed, setFailed] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const stages: StageItem[] = [
-    { key: "uploading", label: t("petta.generating.stageUploading") },
-    { key: "creating_task", label: t("petta.generating.stageCreatingTask") },
+    { key: "queued", label: "已进入队列" },
+    { key: "validating", label: t("petta.generating.stageUploading") },
+    { key: "generating_still", label: t("petta.generating.stageCreatingTask") },
     { key: "generating_video", label: t("petta.generating.stageGeneratingVideo") },
-    { key: "sending_hardware", label: t("petta.generating.stageSendingHardware") },
+    { key: "post_processing", label: "正在验收视频" },
+    { key: "delivering", label: t("petta.generating.stageSendingHardware") },
   ];
 
   useEffect(() => {
@@ -39,11 +41,16 @@ export default function GeneratingPage() {
         if (cancelled) return;
         setProgress(state.progress);
         setStage(state.stage);
-        if (state.status === "success") {
+        flowStore.setCompletion({
+          selectedAction: state.selectedAction,
+          videoUrl: state.videoUrl,
+          displayCode: state.displayCode,
+        });
+        if (state.status === "completed" || state.status === "success") {
           setTimeout(() => !cancelled && router.replace("/done"), 700);
           return;
         }
-        if (state.status === "failed") {
+        if (["failed", "delivery_failed", "expired", "cancelled"].includes(state.status)) {
           setFailed(true);
           return;
         }
@@ -107,6 +114,9 @@ export default function GeneratingPage() {
           <p className="mx-auto max-w-[18em] text-sm leading-relaxed text-[var(--petta-muted)]">
             {t("petta.generating.sub")}
           </p>
+          {flow.displayCode && (
+            <p className="text-sm font-semibold text-[var(--petta-cream)]">展示码：{flow.displayCode}</p>
+          )}
         </div>
 
         {/* Breathing progress */}

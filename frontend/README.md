@@ -22,6 +22,14 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+## 展会扫码入口
+
+展台电脑打开 `http://<局域网IP>:3000/operator`，页面会显示用户扫码二维码和按展示码分组的任务队列。手机扫描后进入 `/upload`，提交后在生成页和完成页看到同一个展示码。局域网联调时将前端绑定到所有网卡：
+
+```bash
+npm run dev -- --hostname 0.0.0.0 --port 3000
+```
+
 ## Environment Variables
 
 Copy `.env.example` to `.env` and fill in your private key:

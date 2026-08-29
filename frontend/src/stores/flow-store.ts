@@ -7,6 +7,9 @@ interface PettaFlowState {
   photoFile: File | null;
   imageId: string | null;
   taskId: string | null;
+  displayCode: string | null;
+  selectedAction: string | null;
+  videoUrl: string | null;
 }
 
 let state: PettaFlowState = {
@@ -14,6 +17,9 @@ let state: PettaFlowState = {
   photoFile: null,
   imageId: null,
   taskId: null,
+  displayCode: null,
+  selectedAction: null,
+  videoUrl: null,
 };
 
 const listeners = new Set<() => void>();
@@ -49,6 +55,16 @@ export const flowStore = {
   setTaskId(id: string) {
     setState({ taskId: id });
   },
+  setDisplayCode(code: string) {
+    setState({ displayCode: code });
+  },
+  setCompletion(details: { selectedAction?: string; videoUrl?: string; displayCode?: string }) {
+    setState({
+      selectedAction: details.selectedAction ?? state.selectedAction,
+      videoUrl: details.videoUrl ?? state.videoUrl,
+      displayCode: details.displayCode ?? state.displayCode,
+    });
+  },
   reset() {
     if (state.photoUrl) URL.revokeObjectURL(state.photoUrl);
     setState({
@@ -56,6 +72,9 @@ export const flowStore = {
       photoFile: null,
       imageId: null,
       taskId: null,
+      displayCode: null,
+      selectedAction: null,
+      videoUrl: null,
     });
   },
 };
@@ -65,6 +84,9 @@ const SERVER_SNAPSHOT: PettaFlowState = {
   photoFile: null,
   imageId: null,
   taskId: null,
+  displayCode: null,
+  selectedAction: null,
+  videoUrl: null,
 };
 
 export function useFlow(): PettaFlowState {

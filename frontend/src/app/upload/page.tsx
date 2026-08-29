@@ -33,8 +33,9 @@ export default function UploadPage() {
     try {
       const { imageId, imageUrl } = await uploadPhoto(flow.photoFile);
       flowStore.setImageId(imageId);
-      const { taskId } = await createGeneration({ imageId, imageUrl });
+      const { taskId, displayCode } = await createGeneration({ imageId, imageUrl });
       flowStore.setTaskId(taskId);
+      if (displayCode) flowStore.setDisplayCode(displayCode);
       router.push("/generating");
     } catch {
       setUploading(false);

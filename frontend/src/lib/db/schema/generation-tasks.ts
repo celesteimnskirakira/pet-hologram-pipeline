@@ -4,9 +4,8 @@ import { index, integer, pgTable, text, timestamp, varchar } from "drizzle-orm/p
 /**
  * A holographic-pet generation task. The frontend creates one after an upload,
  * then polls it. The actual video model + hardware dispatch run in an EXTERNAL
- * backend, which will update `status` / `videoUrl` via the task API. Until that
- * external system is connected, the task API advances progress server-side from
- * `startedAt` so the waiting UI has a real, database-backed source of truth.
+ * backend, which updates status, progress and artifacts through the authenticated
+ * callback API. Reads never derive or advance progress from elapsed time.
  */
 export const generationTasks = pgTable(
   "generation_tasks",
@@ -15,15 +14,18 @@ export const generationTasks = pgTable(
     // Uploaded photo reference (object-storage URL or opaque image id).
     imageUrl: text("image_url"),
     imageId: varchar("image_id", { length: 128 }),
-    // pending | processing | success | failed
+    // queued | processing | completed | failed | delivery_failed | expired | cancelled
     status: varchar("status", { length: 24 }).notNull().default("pending"),
     stage: varchar("stage", { length: 32 }).notNull().default("queued"),
     progress: integer("progress").notNull().default(0),
-    // Estimated total duration (ms) used to derive progress before the
-    // external model reports real status.
-    durationMs: integer("duration_ms").notNull().default(14000),
     videoUrl: text("video_url"),
     error: text("error"),
+    message: text("message"),
+    errorCode: varchar("error_code", { length: 64 }),
+    selectedAction: varchar("selected_action", { length: 32 }),
+    artifacts: text("artifacts"),
+    displayCode: varchar("display_code", { length: 6 }),
+    deliveryStatus: varchar("delivery_status", { length: 32 }),
     startedAt: timestamp("started_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },

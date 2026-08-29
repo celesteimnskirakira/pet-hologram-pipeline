@@ -67,6 +67,7 @@
     "done": {
       "title": "Your furry friend has arrived",
       "sub": "Your holographic pet is now playing on the base screen and clear acrylic panel of the Genpichong in front of you.",
+      "selectedAction": "Random action: {{action}}",
       "again": "Make another"
     }
   }

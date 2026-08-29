@@ -3,14 +3,18 @@ import { request } from "./request";
 
 export type GenerationStage =
   | "queued"
-  | "uploading"
-  | "creating_task"
+  | "validating"
+  | "generating_still"
   | "generating_video"
-  | "sending_hardware"
-  | "success"
-  | "failed";
+  | "post_processing"
+  | "delivering"
+  | "completed"
+  | "failed"
+  | "delivery_failed"
+  | "expired"
+  | "cancelled";
 
-export type GenerationStatus = "pending" | "processing" | "success" | "failed";
+export type GenerationStatus = "queued" | "processing" | "completed" | "success" | "failed" | "delivery_failed" | "expired" | "cancelled";
 
 export interface TaskState {
   taskId: string;
@@ -18,6 +22,14 @@ export interface TaskState {
   progress: number;
   stage: GenerationStage;
   videoUrl?: string;
+  message?: string;
+  errorCode?: string;
+  error?: string;
+  selectedAction?: string;
+  displayCode?: string;
+  deliveryStatus?: string;
+  artifacts?: Record<string, unknown>;
+  updatedAt?: string;
 }
 
 export interface UploadResult {
@@ -40,14 +52,14 @@ export async function uploadPhoto(file: File): Promise<UploadResult> {
 export async function createGeneration(input: {
   imageId: string;
   imageUrl: string;
-}): Promise<{ taskId: string }> {
+}): Promise<{ taskId: string; displayCode?: string }> {
   const res = await request("/api/generation", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(input),
   });
   if (!res.ok) throw new Error("create_generation_failed");
-  return (await res.json()) as { taskId: string };
+  return (await res.json()) as { taskId: string; displayCode?: string };
 }
 
 /** Polls a generation task's current status. */
