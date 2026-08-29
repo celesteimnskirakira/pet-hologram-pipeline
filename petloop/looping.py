@@ -90,8 +90,6 @@ def extract_frame(video: str | Path, index: int, out_path: str | Path) -> Path:
             str(video),
             "-vf",
             f"select=eq(n\\,{index})",
-            "-vsync",
-            "0",
             "-frames:v",
             "1",
             str(out_path),
