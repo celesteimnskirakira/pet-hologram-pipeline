@@ -248,6 +248,32 @@ class PromptTests(unittest.TestCase):
         for needle in ("camera movement", "eyes opening", "changing markings", "watermark"):
             self.assertIn(needle, negative)
 
+    def test_supplied_action_prompts_are_loaded(self):
+        expected = {
+            "scratch_neck": "后爪连续轻挠同侧脖子",
+            "sleep": "保持安静睡眠状态",
+            "groom": "低头连续舔舐前爪",
+            "walk": "自然的原地行走循环",
+        }
+        for action, phrase in expected.items():
+            self.assertIn(phrase, prompts.action_video_prompt(action))
+
+    def test_walk_prompt_is_not_overridden_by_sleep_rules(self):
+        traits = prompts.PetTraits(raw={"species": "cat"})
+        prompt = prompts.video_prompt(traits, pose="walk")
+        self.assertIn("自然的原地行走循环", prompt)
+        self.assertNotIn("Eyes stay closed", prompt)
+        negative = prompts.negative_prompt("walk")
+        self.assertNotIn("standing up", negative)
+        self.assertNotIn(", walking,", negative)
+
+    def test_action_bridge_frames_match_selected_action(self):
+        traits = prompts.PetTraits(raw={"species": "dog"})
+        self.assertIn("hind paws", prompts.action_still_prompt(traits, "scratch_neck"))
+        self.assertIn("Eyes fully closed", prompts.action_still_prompt(traits, "sleep"))
+        self.assertIn("front paws", prompts.action_still_prompt(traits, "groom"))
+        self.assertIn("in-place walking cycle", prompts.action_still_prompt(traits, "walk"))
+
 
 class MultipartTests(unittest.TestCase):
     def test_parses_fields_and_file(self):

@@ -24,6 +24,18 @@ class LocalBoothTests(unittest.TestCase):
         self.assertIn('type=file accept="image/*"', server.VISITOR_HTML)
         self.assertNotIn("capture=", server.VISITOR_HTML)
 
+    def test_mobile_action_options_match_supplied_prompts(self) -> None:
+        expected = {
+            "scratch_neck": "挠脖子",
+            "sleep": "睡觉",
+            "groom": "舔毛",
+            "walk": "走路",
+        }
+        self.assertEqual(server.POSES, expected)
+        for value, label in expected.items():
+            self.assertIn(f"<option value={value}>{label}</option>", server.VISITOR_HTML)
+        self.assertNotIn("侧卧蜷睡", server.VISITOR_HTML)
+
     def test_device_output_stays_in_local_job_directory(self) -> None:
         path = server.RUNS_DIR / "abc123" / "device" / "current.avi"
         self.assertTrue(path.is_relative_to(server.LOCAL_ROOT))
@@ -75,8 +87,8 @@ class LocalBoothTests(unittest.TestCase):
                     "job1": {
                         "id": "job1",
                         "pet_name": "奶糖",
-                        "pose": "curled_side",
-                        "pose_name": "侧卧蜷睡",
+                        "pose": "sleep",
+                        "pose_name": "睡觉",
                         "image": "/tmp/photo.jpg",
                         "status": "queued",
                         "stage": "等待生成",

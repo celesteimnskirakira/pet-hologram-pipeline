@@ -46,13 +46,7 @@ SETTINGS: dict[str, object] = {
     "advertise": "",
 }
 
-POSES = {
-    "curled_side": "侧卧蜷睡",
-    "loaf": "趴卧收爪",
-    "side_stretch": "侧身伸展",
-    "curled_tight": "团成球",
-    "sprawl": "摊开趴睡",
-}
+POSES = dict(prompts.ACTION_LABELS)
 
 
 def _now() -> str:
@@ -276,7 +270,7 @@ VISITOR_HTML = """<!doctype html><html lang=zh-CN><head><meta charset=utf-8>
 main{max-width:520px;margin:auto;padding:28px 18px 60px}h1{font-size:30px;margin:8px 0}p{color:#aeb8cb}.card{background:rgba(18,24,36,.94);border:1px solid var(--line);border-radius:20px;padding:18px;margin-top:20px;box-shadow:0 20px 70px #0007}
 label{display:block;margin:14px 0 6px;color:#c8d0df}input,select,button{width:100%;font:inherit;border-radius:12px;padding:14px;border:1px solid var(--line);background:#0c111a;color:white}input[type=file]{padding:22px 12px;border-style:dashed}button{margin-top:20px;border:0;background:linear-gradient(135deg,#397ef2,#8759ef);font-weight:700}button:disabled{opacity:.5}.bar{height:9px;background:#242b39;border-radius:99px;overflow:hidden}.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--blue),var(--ok));transition:width .4s}.ok{color:var(--ok)}.bad{color:#ff8585}.small{font-size:13px}
 </style></head><body><main><div class=small>本地运行 · 无需云服务器</div><h1>让宠物出现在全息屏里</h1><p>上传一张主体清晰的照片。完成后视频会自动发送到现场的微雪设备。</p>
-<section class=card id=form><label>宠物照片</label><input id=image type=file accept="image/*"><p class=small>可从照片图库选择，也可以现场拍照。</p><label>宠物名字（可选）</label><input id=name maxlength=30 placeholder="例如：奶糖"><label>动态姿势</label><select id=pose><option value=curled_side>侧卧蜷睡</option><option value=loaf>趴卧收爪</option><option value=side_stretch>侧身伸展</option><option value=curled_tight>团成球</option><option value=sprawl>摊开趴睡</option></select><button id=go>开始生成</button><p id=err class=bad></p></section>
+<section class=card id=form><label>宠物照片</label><input id=image type=file accept="image/*"><p class=small>可从照片图库选择，也可以现场拍照。</p><label>宠物名字（可选）</label><input id=name maxlength=30 placeholder="例如：奶糖"><label>动态动作</label><select id=pose><option value=scratch_neck>挠脖子</option><option value=sleep>睡觉</option><option value=groom>舔毛</option><option value=walk>走路</option></select><button id=go>开始生成</button><p id=err class=bad></p></section>
 <section class=card id=status hidden><h2 id=title>已加入队列</h2><p id=stage>等待生成</p><div class=bar><i id=fill></i></div><p class=small>请保留此页面。完成后现场屏幕会自动切换。</p></section></main>
 <script>const key=new URLSearchParams(location.search).get('k')||'';let id='';
 const petName=document.getElementById('name');
@@ -393,9 +387,9 @@ class Handler(BaseHTTPRequestHandler):
             image_path.unlink(missing_ok=True)
             self.send_json(400, {"error": str(exc)})
             return
-        pose = fields.get("pose", "curled_side")
+        pose = fields.get("pose", "sleep")
         if pose not in POSES or pose not in prompts.POSE_TEXT:
-            pose = "curled_side"
+            pose = "sleep"
         job_id = enqueue(image_path, fields.get("pet_name", ""), pose)
         self.send_json(200, {"job_id": job_id})
 

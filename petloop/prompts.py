@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
+from pathlib import Path
 
 TRAIT_SCHEMA = {
     "species": "cat | dog | other",
@@ -66,6 +67,33 @@ POSE_TEXT = {
         "lying stretched out on one side, legs extended loosely, belly slightly exposed, "
         "head tipped back against the ground, eyes closed, deeply relaxed"
     ),
+    "scratch_neck": (
+        "sitting naturally, head turned slightly, ready to lift one hind leg and scratch its neck"
+    ),
+    "sleep": (
+        "lying down naturally curled or resting on its belly, eyes closed and peacefully asleep"
+    ),
+    "groom": (
+        "sitting or crouching naturally, ready to lift one front paw and groom its fur"
+    ),
+    "walk": (
+        "standing naturally and facing the camera, ready for an in-place walking cycle"
+    ),
+}
+
+ACTION_LABELS = {
+    "scratch_neck": "挠脖子",
+    "sleep": "睡觉",
+    "groom": "舔毛",
+    "walk": "走路",
+}
+LOCAL_BOOTH_ACTIONS = tuple(ACTION_LABELS)
+ACTION_PROMPT_DIR = Path(__file__).with_name("action_prompts")
+ACTION_PROMPT_FILES = {
+    "scratch_neck": "scratch_neck.txt",
+    "sleep": "sleep.txt",
+    "groom": "groom.txt",
+    "walk": "walk.txt",
 }
 
 # Default action set for the roadshow display: three visually distinct sleeping
@@ -214,8 +242,77 @@ FORBIDDEN
 - Do not stylise into cartoon, anime, painting, or 3D render."""
 
 
+def action_video_prompt(action: str) -> str:
+    """Return the exact user-supplied video prompt for one local-booth action."""
+    filename = ACTION_PROMPT_FILES.get(action)
+    if filename is None:
+        raise ValueError(f"Unknown action prompt: {action}")
+    return (ACTION_PROMPT_DIR / filename).read_text(encoding="utf-8").strip()
+
+
+def action_still_prompt(traits: PetTraits, pose: str) -> str:
+    """Create a bridge frame whose body pose matches the selected action."""
+    if pose not in ACTION_PROMPT_FILES:
+        return sleep_still_prompt(traits, pose=pose)
+
+    subject = traits.species if traits.species != "pet" else "pet"
+    start_pose = {
+        "scratch_neck": (
+            "sitting naturally with all four limbs anatomically correct, head turned slightly, "
+            "hind paws still on the ground, ready to scratch the neck"
+        ),
+        "sleep": (
+            "lying down naturally curled or resting on its belly, eyes fully closed, peacefully asleep"
+        ),
+        "groom": (
+            "sitting or lightly crouching naturally, both front paws initially resting in anatomically "
+            "correct positions, ready to lift one paw for grooming"
+        ),
+        "walk": (
+            "standing squarely and facing the camera in a neutral balanced stance, all four feet visible, "
+            "ready to begin an in-place walking cycle"
+        ),
+    }[pose]
+    eye_rule = "Eyes fully closed." if pose == "sleep" else "Eyes natural and calm."
+    return f"""Redraw the exact same individual {subject} from the reference image, now {start_pose}.
+
+This is the same pet, not a lookalike. Only the body pose changes; the animal's identity does not.
+
+MUST MATCH THE REFERENCE EXACTLY:
+{traits.identity_block()}
+
+POSE AND COMPOSITION
+- The animal is {start_pose}.
+- {eye_rule}
+- Full body visible and centered with generous even margins; no ears, paws, legs, or tail cropped.
+- Fixed straight-on camera view suitable for a square hologram animation.
+- No visible bed, blanket, furniture, floor, or prop.
+
+BACKGROUND
+- Pure solid black background, RGB (0, 0, 0), completely uniform.
+- No gradient, vignette, texture, floor line, cast shadow, glow, haze, text, or watermark.
+
+IDENTITY AND ANATOMY
+- Preserve coat color, pattern, markings, face, eyes, ears, body proportions, tail, and accessories.
+- Keep every marking on the same side and in the same position as the reference.
+- Exactly four anatomically correct limbs; no extra, missing, fused, or deformed paws.
+- Photorealistic fur and constant soft frontal studio lighting.
+- Do not stylise into cartoon, anime, painting, or 3D render."""
+
+
 def video_prompt(traits: PetTraits, pose: str = "curled_side", loop_hint: bool = True) -> str:
     """Step 3 prompt: sleeping loop, minimal motion so head/tail frames match."""
+    if pose in ACTION_PROMPT_FILES:
+        supplied = action_video_prompt(pose)
+        loop_lock = (
+            "\n\n补充身份锁定（必须遵守）：\n"
+            f"{traits.identity_block()}\n\n"
+            "补充循环要求：第一帧和最后一帧必须回到相同的姿态、位置、主体大小、镜头构图和动作周期相位，确保循环播放没有明显跳变。"
+            if loop_hint
+            else f"\n\n补充身份锁定（必须遵守）：\n{traits.identity_block()}"
+        )
+        return supplied + loop_lock
+
     subject = traits.species if traits.species != "pet" else "pet"
     pose_text = POSE_TEXT.get(pose, POSE_TEXT["curled_side"])
     loop_text = (
@@ -248,10 +345,17 @@ LOOP
 - {loop_text}Breathing ends at the same point in its cycle as it began, at the top of an exhale."""
 
 
-def negative_prompt() -> str:
-    return (
+def negative_prompt(pose: str = "curled_side") -> str:
+    common = (
         "background change, colored background, gradient background, studio backdrop, visible floor, "
         "camera movement, zoom, pan, handheld shake, cut, scene transition, second animal, human hands, "
-        "eyes opening, standing up, walking, jumping, head lift, morphing fur, changing markings, "
-        "changing coat color, extra limbs, deformed paws, text, watermark, logo, subtitles, flicker"
+        "jumping, morphing fur, changing markings, changing coat color, extra limbs, missing limbs, "
+        "fused limbs, deformed paws, text, watermark, logo, subtitles, flicker"
     )
+    if pose == "walk":
+        return common + ", moving toward camera, moving away from camera, leaving center, sliding feet"
+    if pose == "groom":
+        return common + ", walking away, running, standing up, malformed tongue, detached paw"
+    if pose == "scratch_neck":
+        return common + ", walking away, running, detached hind leg, misplaced hind leg, violent shaking"
+    return common + ", eyes opening, standing up, walking, head lift, sudden large movement"

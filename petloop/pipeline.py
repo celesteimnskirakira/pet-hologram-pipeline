@@ -203,7 +203,7 @@ def generate_loop(
         prompt,
         frame,
         spec,
-        negative=prompts.negative_prompt(),
+        negative=prompts.negative_prompt(pose),
         on_status=status_hook,
     )
     raw_video = download(result.url, run_dir / f"step3_raw{suffix}.mp4")
@@ -234,7 +234,7 @@ def build_action(
             spec.still,
             run_dir,
             on_step,
-            prompt=prompts.sleep_still_prompt(traits, pose=pose),
+            prompt=prompts.action_still_prompt(traits, pose=pose),
             stem=f"pose_{pose}_still",
             label=f"pose_{pose}",
         )
@@ -426,13 +426,12 @@ def run(
         artifacts.report = _write_report(artifacts, spec)
         return artifacts
 
-    # Single-pose path.
+    # Single-action path.
     #
     # The front view is what the user asked for as a deliverable, but it is a
-    # poor first frame for the video: turning a sitting, eyes-open portrait into
-    # a curled sleeping animal is a big pose change, and first/last frame
-    # conditioning actively resists it. Doing the pose change in image space
-    # leaves the video model with only breathing to add.
+    # poor first frame for the video: changing a sitting, eyes-open portrait to
+    # an action-specific starting pose can be a large change, and first/last
+    # frame conditioning actively resists it. Do that pose change in image space.
     video_source_path = still_path
     if spec.sleep_bridge:
         sleep_path, _sleep_raw, sleep_score, _ = generate_still(
@@ -442,7 +441,7 @@ def run(
             spec.still,
             work_dir,
             on_step,
-            prompt=prompts.sleep_still_prompt(traits, pose=spec.pose),
+            prompt=prompts.action_still_prompt(traits, pose=spec.pose),
             stem="step2b_sleep_pose_black",
             label="sleep_still",
         )

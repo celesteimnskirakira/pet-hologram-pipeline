@@ -140,7 +140,7 @@ class HologramSpec:
 @dataclass
 class PipelineSpec:
     pet_kind: str = "auto"  # auto | cat | dog
-    pose: str = "curled_side"  # curled_side | loaf | sprawl
+    pose: str = "curled_side"  # legacy sleep poses or scratch_neck | sleep | groom | walk
     # Roadshow mode: render several actions for one pet so the holographic
     # display can cycle through them. Empty means single-pose behaviour.
     poses: tuple[str, ...] = ()

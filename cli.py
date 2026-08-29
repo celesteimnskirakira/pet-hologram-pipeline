@@ -206,7 +206,14 @@ def main(argv: list[str] | None = None) -> int:
     def add_common(sub: argparse.ArgumentParser) -> None:
         sub.add_argument("--provider", choices=["ark", "agnes"], default="ark")
         sub.add_argument("--pet", choices=["auto", "cat", "dog"], default="auto")
-        sub.add_argument("--pose", choices=["curled_side", "loaf", "sprawl"], default="curled_side")
+        sub.add_argument(
+            "--pose",
+            choices=[
+                "curled_side", "loaf", "sprawl", "side_stretch", "curled_tight",
+                "scratch_neck", "sleep", "groom", "walk",
+            ],
+            default="curled_side",
+        )
         sub.add_argument("--resolution", choices=["480p", "720p"], default="480p")
         sub.add_argument("--ratio", choices=["1:1", "16:9", "9:16", "4:3", "3:4"], default="1:1")
         sub.add_argument("--loop-mode", choices=["trim", "xfade", "none"], default="trim", dest="loop_mode")
