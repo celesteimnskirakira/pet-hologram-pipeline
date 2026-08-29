@@ -28,6 +28,21 @@ class LocalBoothTests(unittest.TestCase):
         with self.assertRaisesRegex(device_bridge.DeviceBridgeError, "USB 串口不存在"):
             device_bridge.find_port("/tmp/definitely-not-a-real-serial-port")
 
+    def test_wifi_ip_wins_over_vpn_route(self) -> None:
+        completed = SimpleNamespace(stdout="172.20.10.2\n")
+        with mock.patch.object(server.subprocess, "run", return_value=completed):
+            self.assertEqual(server.lan_ip(), "172.20.10.2")
+
+    def test_visitor_url_refreshes_current_ip(self) -> None:
+        old_settings = dict(server.SETTINGS)
+        try:
+            server.SETTINGS.update({"advertise": "", "http_port": 8793})
+            with mock.patch.object(server, "lan_ip", return_value="172.20.10.2"):
+                self.assertTrue(server.visitor_url().startswith("http://172.20.10.2:8793/u?k="))
+        finally:
+            server.SETTINGS.clear()
+            server.SETTINGS.update(old_settings)
+
     def test_job_persistence_is_local(self) -> None:
         old = server.RUNS_DIR
         try:

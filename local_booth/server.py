@@ -8,6 +8,7 @@ import json
 import queue
 import secrets
 import socket
+import subprocess
 import sys
 import threading
 import traceback
@@ -32,7 +33,6 @@ from device_bridge import DeviceBridgeError, convert_and_upload, find_port  # no
 from petloop import config, imaging, pipeline, prompts, providers  # noqa: E402
 
 TOKEN = secrets.token_urlsafe(10)
-PUBLIC_URL = {"value": ""}
 JOBS: dict[str, dict] = {}
 JOB_ORDER: list[str] = []
 LOCK = threading.Lock()
@@ -42,6 +42,8 @@ SETTINGS: dict[str, object] = {
     "provider": "ark",
     "resolution": "480p",
     "no_device": False,
+    "http_port": 8793,
+    "advertise": "",
 }
 
 POSES = {
@@ -222,6 +224,22 @@ def parse_multipart(raw: bytes, content_type: str) -> tuple[dict[str, str], tupl
 
 
 def lan_ip() -> str:
+    # On macOS en0 is normally Wi-Fi. Reading it directly avoids VPN/proxy
+    # routes causing the QR code to advertise an unreachable virtual address.
+    try:
+        result = subprocess.run(
+            ["/usr/sbin/ipconfig", "getifaddr", "en0"],
+            capture_output=True,
+            text=True,
+            timeout=2,
+            check=False,
+        )
+        value = result.stdout.strip()
+        if value and not value.startswith(("127.", "169.254.")):
+            return value
+    except (OSError, subprocess.SubprocessError):
+        pass
+
     probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
         probe.connect(("8.8.8.8", 80))
@@ -233,6 +251,12 @@ def lan_ip() -> str:
     finally:
         probe.close()
     return "127.0.0.1"
+
+
+def visitor_url() -> str:
+    advertised = str(SETTINGS.get("advertise") or "").strip() or lan_ip()
+    port = int(SETTINGS.get("http_port") or 8793)
+    return f"http://{advertised}:{port}/u?k={TOKEN}"
 
 
 def qr_svg(value: str) -> bytes:
@@ -303,7 +327,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/api/qr.svg":
             try:
-                image = qr_svg(PUBLIC_URL["value"])
+                image = qr_svg(visitor_url())
             except ImportError:
                 self.send_json(503, {"error": "缺少 segno，请先运行 setup_local_booth.command"})
                 return
@@ -330,7 +354,7 @@ class Handler(BaseHTTPRequestHandler):
             for job in jobs:
                 job.pop("events", None)
             self.send_json(200, {
-                "visitor_url": PUBLIC_URL["value"],
+                "visitor_url": visitor_url(),
                 "device": {"connected": bool(device), "port": device},
                 "pending": sum(j["status"] not in {"done", "error"} for j in jobs),
                 "jobs": jobs,
@@ -392,16 +416,16 @@ def main() -> int:
         "provider": args.provider,
         "resolution": args.resolution,
         "no_device": args.no_device,
+        "http_port": args.port,
+        "advertise": args.advertise,
     })
-    advertised = args.advertise or lan_ip()
-    PUBLIC_URL["value"] = f"http://{advertised}:{args.port}/u?k={TOKEN}"
     RUNS_DIR.mkdir(parents=True, exist_ok=True)
     threading.Thread(target=worker, daemon=True, name="local-booth-worker").start()
     server = ThreadingHTTPServer((args.host, args.port), Handler)
     console = f"http://127.0.0.1:{args.port}/"
     print("\n本地全息体验台已启动")
     print(f"电脑控制台：{console}")
-    print(f"手机扫码地址：{PUBLIC_URL['value']}")
+    print(f"手机扫码地址：{visitor_url()}")
     print("原 Holo Video Uploader.app 未被启动或修改。\n")
     if not args.no_browser:
         threading.Timer(0.6, lambda: webbrowser.open(console)).start()
