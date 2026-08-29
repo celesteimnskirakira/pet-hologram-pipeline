@@ -1,0 +1,73 @@
+{
+  "common": {
+    "signIn": "Sign in",
+    "signOut": "Sign out",
+    "loading": "Loading…",
+    "on": "On",
+    "off": "Off",
+    "close": "Close",
+    "save": "Save",
+    "cancel": "Cancel",
+    "edit": "Edit",
+    "delete": "Delete",
+    "userId": "User ID"
+  },
+  "language": {
+    "label": "Language",
+    "triggerLabel": "Language: {{language}}",
+    "followSystem": "System",
+    "followSystemWithLanguage": "System ({{language}})",
+    "enUS": "English",
+    "zhCN": "中文"
+  },
+  "errors": {
+    "notFound": {
+      "code": "404",
+      "title": "Page not found",
+      "description": "The page you're looking for doesn't exist or may have been moved.",
+      "backHome": "Back to home"
+    },
+    "generic": {
+      "title": "Something went wrong",
+      "description": "An unexpected error occurred. You can try again or return to the home page.",
+      "tryAgain": "Try again",
+      "backHome": "Back to home"
+    }
+  },
+  "petta": {
+    "brandTagline": "Holographic companion pet",
+    "home": {
+      "copy": "Upload a photo, and it comes to your side",
+      "sub": "Turn your pet into a holographic companion on your Genpichong device.",
+      "start": "Start"
+    },
+    "upload": {
+      "title": "Upload a pet photo",
+      "hint": "A clear front-facing shot in good light works best.",
+      "choose": "Choose a photo",
+      "retake": "Choose another",
+      "processing": "Reading your photo…",
+      "back": "Back",
+      "generate": "Start generating",
+      "errorTitle": "Upload failed",
+      "errorRetry": "Try again"
+    },
+    "generating": {
+      "title": "It's on its way to you",
+      "sub": "In about a minute, it will appear right in front of you.",
+      "stageUploading": "Recognized it",
+      "stageCreatingTask": "Getting ready to set off",
+      "stageGeneratingVideo": "Bringing it to life",
+      "stageSendingHardware": "Heading to your Genpichong",
+      "percent": "{{value}}%",
+      "errorTitle": "Generation failed",
+      "errorSub": "Something went wrong. Please try again.",
+      "retry": "Try again"
+    },
+    "done": {
+      "title": "Your furry friend has arrived",
+      "sub": "Your holographic pet is now playing on the base screen and clear acrylic panel of the Genpichong in front of you.",
+      "again": "Make another"
+    }
+  }
+}

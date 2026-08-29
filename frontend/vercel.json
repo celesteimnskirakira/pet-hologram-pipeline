@@ -1,0 +1,21 @@
+{
+    "framework": "nextjs",
+    "buildCommand": "bun run build",
+    "headers": [
+        {
+            "source": "/(.*)",
+            "headers": [
+                {
+                    "key": "Content-Security-Policy",
+                    "value": "frame-ancestors https: http:"
+                }
+            ]
+        }
+    ],
+    "crons": [
+        {
+            "path": "/api/notifications/cron/daily-digest",
+            "schedule": "0 17 * * *"
+        }
+    ]
+}
