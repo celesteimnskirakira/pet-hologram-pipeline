@@ -41,7 +41,18 @@ def load_env_file(path: Path | None = None, override: bool = False) -> dict[str,
 # Load before the module-level model settings below read os.environ.
 load_env_file()
 
-ARK_BASE_URL = os.environ.get("ARK_BASE_URL", "https://ark.cn-beijing.volces.com/api/v3")
+IMAGE_BASE_URL = os.environ.get("IMAGE_BASE_URL", "https://api.openai-next.com")
+IMAGE_MODEL = os.environ.get("IMAGE_MODEL", "doubao-seedream-5-0-260128")
+IMAGE_VISION_MODEL = os.environ.get("IMAGE_VISION_MODEL", "")
+IMAGE_API_PREFIX = os.environ.get("IMAGE_API_PREFIX", "/v1")
+IMAGE_KEY_ENV = ("IMAGE_API_KEY", "IMAGE_TOKEN")
+
+VIDEO_BASE_URL = os.environ.get("VIDEO_BASE_URL", "https://ark.cn-beijing.volces.com/api/v3")
+VIDEO_MODEL = os.environ.get("VIDEO_MODEL", "doubao-seedance-2-0-mini-260615")
+VIDEO_KEY_ENV = ("VIDEO_API_KEY", "VIDEO_TOKEN")
+
+# Legacy provider settings kept for backwards compatibility with old runs.
+ARK_BASE_URL = os.environ.get("ARK_BASE_URL", VIDEO_BASE_URL)
 AGNES_BASE_URL = os.environ.get("AGNES_BASE_URL", "https://apihub.agnes-ai.com")
 
 # Ark model ids. Pinned on purpose: floating aliases change pricing tiers silently.
@@ -71,6 +82,14 @@ def ark_key() -> str | None:
 
 def agnes_key() -> str | None:
     return first_env(AGNES_KEY_ENV)
+
+
+def image_key() -> str | None:
+    return first_env(IMAGE_KEY_ENV)
+
+
+def video_key() -> str | None:
+    return first_env(VIDEO_KEY_ENV)
 
 
 @dataclass

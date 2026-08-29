@@ -8,6 +8,7 @@ explicit constraints instead of a vague "keep it similar".
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from dataclasses import dataclass, field
 
 TRAIT_SCHEMA = {
@@ -71,6 +72,27 @@ POSE_TEXT = {
 # Default action set for the roadshow display: three visually distinct sleeping
 # silhouettes, so cycling between them reads as variety rather than a glitch.
 ROADSHOW_POSES = ("curled_side", "loaf", "side_stretch")
+
+ACTION_PROMPT_DIR = Path(__file__).resolve().parent / "action_prompts"
+ACTION_PROMPTS = {
+    "舔毛": ACTION_PROMPT_DIR / "舔毛.txt",
+    "走路": ACTION_PROMPT_DIR / "走路.txt",
+    "睡觉": ACTION_PROMPT_DIR / "睡觉.txt",
+    "挠脖子": ACTION_PROMPT_DIR / "挠脖子.txt",
+}
+
+def action_prompt(action: str) -> str:
+    """Load one approved action prompt from the project prompt library."""
+    path = ACTION_PROMPTS.get(action)
+    if path is None or not path.is_file():
+        raise FileNotFoundError(f"Action prompt not found: {action}")
+    return path.read_text(encoding="utf-8").strip()
+
+
+def random_action(rng=None) -> str:
+    import random
+    chooser = rng or random
+    return chooser.choice(tuple(ACTION_PROMPTS))
 
 
 @dataclass

@@ -1073,7 +1073,7 @@ class Handler(BaseHTTPRequestHandler):
             query = parse_qs(parsed.query)
             try:
                 estimate = pricing.estimate(
-                    config.ARK_VIDEO_MODEL,
+                    config.VIDEO_MODEL or config.ARK_VIDEO_MODEL,
                     resolution=query.get("resolution", ["480p"])[0],
                     ratio="1:1",
                     seconds=5,

@@ -6,6 +6,7 @@ import base64
 import json
 import subprocess
 import time
+import random
 import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -124,7 +125,7 @@ def generate_still(
     Used for both the front view (step 2) and the sleeping bridge frame that
     feeds the video step.
     """
-    prompt = prompt or prompts.still_prompt(traits, has_reference=True)
+    prompt = prompt or "生成图片中的宠物的完整全身正面图背景为纯黑色比例为一比一"
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / f"prompt_{label}.txt").write_text(prompt, encoding="utf-8")
 
@@ -175,7 +176,7 @@ def generate_loop(
     tag: str = "",
 ) -> tuple[Path, providers.VideoResult]:
     """Step 3: sleeping pet, 5s, head/tail loop."""
-    prompt = prompts.video_prompt(traits, pose=pose, loop_hint=True)
+    prompt = prompts.action_prompt(pose) if pose in prompts.ACTION_PROMPTS else prompts.video_prompt(traits, pose=pose, loop_hint=True)
     suffix = f"_{tag}" if tag else ""
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / f"prompt_video{suffix}.txt").write_text(prompt, encoding="utf-8")
@@ -297,7 +298,7 @@ def run(
     artifacts.source = imaging.save(source, work_dir / "step1_source.png")
 
     estimate = pricing.estimate(
-        config.ARK_VIDEO_MODEL,
+        config.VIDEO_MODEL or config.ARK_VIDEO_MODEL,
         resolution=spec.video.resolution,
         ratio=spec.video.ratio,
         seconds=spec.video.duration_s,
@@ -322,8 +323,14 @@ def run(
         spec.video.submit_gap_s = float(getattr(provider, "submit_gap_s", 0.0) or 0.0)
     artifacts.metrics["submit_gap_s"] = spec.video.submit_gap_s
 
-    # Step 1.5: lock identity into structured traits.
-    traits = extract_traits(provider, source)
+    # Step 1.5: optional identity annotation. Seedream image-to-image can run
+    # directly from the uploaded reference, so a separate vision model is not
+    # required for the product flow.
+    if config.IMAGE_VISION_MODEL:
+        traits = extract_traits(provider, source)
+    else:
+        traits = prompts.PetTraits(raw={})
+        on_step("traits_skipped", {"reason": "IMAGE_VISION_MODEL not configured"})
     if spec.pet_kind != "auto":
         traits.raw["species"] = spec.pet_kind
     artifacts.traits = traits.raw
@@ -343,7 +350,7 @@ def run(
         spec.still.background_luma_max, spec.still.background_black_ratio_min
     )
 
-    # Step 2.5: sleeping bridge frame.
+    # Step 2.5: optional legacy sleeping bridge frame.
     #
     # Roadshow mode branches here: when several poses are requested, each one is
     # a self-contained action built concurrently, and the single-pose path below
@@ -420,6 +427,13 @@ def run(
     # conditioning actively resists it. Doing the pose change in image space
     # leaves the video model with only breathing to add.
     video_source_path = still_path
+    # Product flow: pick exactly one approved action for each uploaded image.
+    if not spec.poses:
+        selected_action = prompts.random_action()
+        spec.pose = selected_action
+        artifacts.metrics["selected_action"] = selected_action
+        (work_dir / "selected_action.txt").write_text(selected_action, encoding="utf-8")
+        spec.sleep_bridge = False
     if spec.sleep_bridge:
         sleep_path, _sleep_raw, sleep_score, _ = generate_still(
             provider,
@@ -447,7 +461,7 @@ def run(
 
     completion_tokens = (video_result.usage or {}).get("completion_tokens")
     if isinstance(completion_tokens, (int, float)) and completion_tokens > 0:
-        family = pricing.family_of(config.ARK_VIDEO_MODEL)
+        family = pricing.family_of(config.VIDEO_MODEL or config.ARK_VIDEO_MODEL)
         unit = pricing.CNY_PER_M_TOKEN.get(family, 23.0)
         billed_list = completion_tokens / 1_000_000 * unit
         discount = estimate.discount or 1.0

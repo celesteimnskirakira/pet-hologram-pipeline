@@ -63,6 +63,29 @@ def check_proxy() -> Check:
 
 
 def check_keys() -> Check:
+    image = config.image_key()
+    video = config.video_key()
+    if image and video:
+        if not config.VIDEO_MODEL:
+            return Check(
+                "api_key",
+                False,
+                "IMAGE_API_KEY and VIDEO_API_KEY found, but VIDEO_MODEL is empty.",
+                "Set VIDEO_MODEL to the exact Seedance 2.5 mini model ID from the Ark console.",
+            )
+        return Check(
+            "api_key",
+            True,
+            "IMAGE_API_KEY and VIDEO_API_KEY found; using split image/video providers.",
+        )
+    if image or video:
+        missing = "VIDEO_API_KEY" if image else "IMAGE_API_KEY"
+        return Check(
+            "api_key",
+            False,
+            "New split-provider configuration is incomplete.",
+            f"Set {missing} in .env.",
+        )
     ark = config.ark_key()
     agnes = config.agnes_key()
     source = ".env file" if config.ENV_FILE.is_file() else "shell environment"
@@ -103,7 +126,8 @@ def check_ffmpeg() -> Check:
 
 def check_endpoint() -> Check:
     """Reachability of the primary API host, honouring proxy settings."""
-    host = urllib.parse.urlparse(config.ARK_BASE_URL).hostname or "ark.cn-beijing.volces.com"
+    base = config.VIDEO_BASE_URL or config.ARK_BASE_URL
+    host = urllib.parse.urlparse(base).hostname or "ark.cn-beijing.volces.com"
     proxy = next((os.environ[var] for var in PROXY_VARS if os.environ.get(var)), None)
     if proxy:
         return Check("endpoint", True, f"Skipped direct probe of {host} because a proxy is configured.")

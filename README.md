@@ -1,28 +1,17 @@
-> 说明：本文档中的价格、模型 ID、促销时间来自 2026-08-28 抓取的火山方舟官方文档，均已在代码里做成可测断言。促销有时效，正式投产前请用 `python cli.py price` 复核。
+> 说明：模型和价格配置需要以当前服务商控制台/API 文档为准。促销有时效，正式投产前请复核。
 
 # 宠物睡眠循环视频流水线
 
 用户上传宠物正面照 → 生成纯黑背景正视图（严格保留原宠物特征）→ 生成 5 秒头尾循环的卧趴睡觉视频。
 
-## 微雪 AMOLED USB 播放器
-
-生成的视频可以通过配套 macOS 拖放工具直接发送到 **Waveshare ESP32-S3-Touch-AMOLED-1.75**，无需拔出 microSD：
-
-- [下载与使用 Holo Video Uploader](holo-video-uploader/README.md)
-- 拖入视频后自动转换为 360×360 / 10 FPS / MJPEG AVI
-- USB 上传完成后立即 466×466 全屏循环播放
-- 可在应用列表中选择并切换视频
-- 可轮询团队后端接口，自动接收 MP4 并推送到微雪
-- 单画面默认自动拼成方向已真机校准的四面全息布局
-
 实际是四步，中间多了一步睡姿桥接帧。原因见下面「为什么多了一步」。
 
-视频用 Seedance 2.0 mini，走火山方舟官方通道，按当前促销价 **480p 1:1 一条约 0.44 元**。
+生图使用 `api.openai-next.com` 的 Seedream 5，生视频使用火山方舟官方 API 的 `doubao-seedance-2-0-mini-260615`，不经过第三方中转。
 
 ## 快速开始
 
 ```bash
-export ARK_API_KEY=你的火山方舟key
+cp .env.example .env             # 填 IMAGE_API_KEY / VIDEO_API_KEY
 
 python cli.py doctor                    # 环境自检
 python cli.py price                     # 成本对照表
@@ -33,7 +22,7 @@ python server.py --port 8791            # 或者开网页上传界面
 key 存放推荐用 `.env`（已在 `.gitignore` 里）：
 
 ```bash
-cp .env.example .env     # 然后填入 ARK_API_KEY
+cp .env.example .env     # 然后填入两个服务商的 key 和模型配置
 python cli.py doctor     # 会告诉你 key 是从 .env 还是 shell 读到的
 ```
 
@@ -249,15 +238,17 @@ report.json                 成本、黑底检测、接缝与运动度量、任�
 
 ## 模型配置
 
-默认走火山方舟，模型 ID 全部写死不用浮动别名，避免计费档位悄悄变化：
+当前生图和生视频使用两个独立服务商：
 
 | 用途 | 模型 | 覆盖用的环境变量 |
 | --- | --- | --- |
-| 特征抽取 | doubao-seed-1-6-flash-250828 | `ARK_VISION_MODEL` |
-| 黑底正视图 | doubao-seedream-4-0-250828 | `ARK_IMAGE_MODEL` |
-| 循环视频 | doubao-seedance-2-0-mini-260615 | `ARK_VIDEO_MODEL` |
+| 黑底正视图 | `doubao-seedream-5-0-260128` via `https://api.openai-next.com` | `IMAGE_MODEL` / `IMAGE_API_KEY` |
+| 特征抽取 | 可选；未配置时直接使用上传原图约束生图 | `IMAGE_VISION_MODEL` |
+| 循环视频 | 火山方舟官方 API 的 `doubao-seedance-2-0-mini-260615` | `VIDEO_MODEL` / `VIDEO_API_KEY` |
 
-没有 `ARK_API_KEY` 但有 `AGNES_API_KEY` 时会自动降级到 Agnes 通道，用它的 keyframes 模式实现首尾同帧。注意这条路走的不是 Seedance，价格和效果都不一样。
+`IMAGE_API_KEY` 和 `VIDEO_API_KEY` 必须分别配置。生图服务的 Base URL 默认是 `https://api.openai-next.com/v1`（可用 `IMAGE_API_PREFIX` 调整）；视频服务默认走火山方舟 API。
+
+注意：`IMAGE_VISION_MODEL` 现在是可选增强项。未配置时，流水线跳过结构化特征抽取，直接把上传原图和固定黑底正视图 prompt 交给 Seedream 图生图。Seedance 的请求字段和轮询响应仍需以方舟官方 API 文档为准。
 
 ## 已验证 / 未验证
 

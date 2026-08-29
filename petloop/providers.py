@@ -200,7 +200,7 @@ class ArkProvider:
 
     def __init__(self, api_key: str, base_url: str | None = None) -> None:
         self.api_key = api_key
-        self.base_url = (base_url or config.ARK_BASE_URL).rstrip("/")
+        self.base_url = (base_url or config.VIDEO_BASE_URL or config.ARK_BASE_URL).rstrip("/")
 
     def describe(self, image: Image.Image, instruction: str, system: str) -> str:
         data_url = imaging.to_data_url(imaging.fit_max_edge(image, 1024), "jpeg")
@@ -274,7 +274,12 @@ class ArkProvider:
             {"type": "image_url", "role": "last_frame", "image_url": {"url": data_url}},
         ]
 
-        payload: dict[str, Any] = {"model": config.ARK_VIDEO_MODEL, "content": content}
+        model = config.VIDEO_MODEL
+        if not model:
+            raise ProviderError(
+                "VIDEO_MODEL is not configured. Set the exact Seedance 2.5 mini model ID from the Ark console."
+            )
+        payload: dict[str, Any] = {"model": model, "content": content}
         if negative:
             payload["negative_prompt"] = negative
 
@@ -321,6 +326,81 @@ class ArkProvider:
                 reason = task.get("error") or task.get("failure_reason") or task
                 raise ProviderError(f"Video task {task_id} {status}: {json.dumps(reason, ensure_ascii=False)[:400]}")
         raise ProviderError(f"Video task {task_id} did not finish within {spec.poll_timeout_s:.0f}s.")
+
+
+class OpenAIImageProvider:
+    """OpenAI-compatible image/vision service for Seedream."""
+
+    name = "image"
+    submit_gap_s = 0.0
+
+    def __init__(self, api_key: str, base_url: str | None = None) -> None:
+        self.api_key = api_key
+        prefix = config.IMAGE_API_PREFIX.strip("/")
+        root = (base_url or config.IMAGE_BASE_URL).rstrip("/")
+        self.base_url = f"{root}/{prefix}" if prefix else root
+
+    def describe(self, image: Image.Image, instruction: str, system: str) -> str:
+        model = config.IMAGE_VISION_MODEL
+        if not model:
+            raise ProviderError(
+                "IMAGE_VISION_MODEL is not configured. Seedream image generation alone cannot extract traits; "
+                "set IMAGE_VISION_MODEL or configure a separate vision provider."
+            )
+        data_url = imaging.to_data_url(imaging.fit_max_edge(image, 1024), "jpeg")
+        payload = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": [
+                    {"type": "image_url", "image_url": {"url": data_url}},
+                    {"type": "text", "text": instruction},
+                ]},
+            ],
+            "temperature": 0.1,
+            "max_tokens": 1200,
+        }
+        data = _request("POST", f"{self.base_url}/chat/completions", self.api_key, payload)
+        choices = data.get("choices") or []
+        content = choices[0].get("message", {}).get("content") if choices else None
+        if isinstance(content, list):
+            content = "".join(part.get("text", "") for part in content if isinstance(part, dict))
+        if not isinstance(content, str) or not content.strip():
+            raise ProviderError(f"Vision model returned empty content: {json.dumps(data)[:300]}")
+        return content
+
+    def still(self, prompt: str, reference: Image.Image, spec: config.StillSpec) -> str:
+        data_url = imaging.to_data_url(imaging.fit_max_edge(reference, 1536), "jpeg")
+        payload = {
+            "model": config.IMAGE_MODEL,
+            "prompt": prompt,
+            "image": data_url,
+            "size": spec.size,
+            "response_format": "url",
+            "watermark": spec.watermark,
+        }
+        data = _request("POST", f"{self.base_url}/images/generations", self.api_key, payload)
+        return _first_image_url(data)
+
+
+class SplitProvider:
+    """Compose an image/vision provider with an independent video provider."""
+
+    name = "split"
+
+    def __init__(self, image: OpenAIImageProvider, video: ArkProvider) -> None:
+        self.image = image
+        self.video = video
+        self.submit_gap_s = video.submit_gap_s
+
+    def describe(self, *args, **kwargs):
+        return self.image.describe(*args, **kwargs)
+
+    def still(self, *args, **kwargs):
+        return self.image.still(*args, **kwargs)
+
+    def loop(self, *args, **kwargs):
+        return self.video.loop(*args, **kwargs)
 
 
 class AgnesProvider:
@@ -445,6 +525,15 @@ class AgnesProvider:
 
 def resolve(preferred: str = "ark") -> ArkProvider | AgnesProvider:
     """Pick a backend, falling back when the preferred key is missing."""
+    # New product configuration: image and video keys are independent.
+    image_key = config.image_key()
+    video_key = config.video_key()
+    if image_key and video_key:
+        return SplitProvider(
+            OpenAIImageProvider(image_key, config.IMAGE_BASE_URL),
+            ArkProvider(video_key, config.VIDEO_BASE_URL),
+        )
+
     ark = config.ark_key()
     agnes = config.agnes_key()
 
