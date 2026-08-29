@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import json
+import ssl
 import subprocess
 import time
 import urllib.error
@@ -80,7 +81,7 @@ def download(url: str, out_path: str | Path, timeout: float = 300.0) -> Path:
             with urllib.request.urlopen(request, timeout=timeout) as response:
                 out_path.write_bytes(response.read())
             return out_path
-        except (urllib.error.URLError, TimeoutError) as exc:
+        except (urllib.error.URLError, ssl.SSLError, TimeoutError, ConnectionError) as exc:
             last_error = exc
             if attempt < 2:
                 time.sleep(2 ** attempt * 2)
