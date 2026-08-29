@@ -2,7 +2,7 @@
 
 用于已经刷入 Holo Player 固件的 **Waveshare ESP32-S3-Touch-AMOLED-1.75**。
 
-把视频拖进 macOS 窗口，应用会自动完成：
+把视频拖进 macOS 窗口，或者从团队后端接收 MP4，应用会自动完成：
 
 ```text
 普通视频
@@ -29,6 +29,15 @@
 
 窗口会列出这些视频。选中一个视频，点击“播放到设备”，即可切换微雪当前播放内容。
 
+## 从后端自动接收 MP4
+
+1. 在“后端 MP4 接收”区域填写同事提供的 HTTPS 接口 URL。
+2. 如果接口需要鉴权，填写 Bearer Token；Token 只在本次运行中保留。
+3. 点击“从后端接收”进行一次接收，或勾选“自动接收（每 10 秒）”。
+4. 检测到新 ID 后，应用自动下载 MP4、转换、USB 上传并切换播放。
+
+应用支持接口直接返回 `video/mp4`，也支持返回包含 `id`、`download_url` 和可选 `ack_url` 的 JSON。完整协议见 [`BACKEND_API.md`](BACKEND_API.md)。
+
 ### 系统要求
 
 - Apple Silicon Mac（M1/M2/M3/M4 或更新）
@@ -42,7 +51,7 @@
 SHA-256：
 
 ```text
-86731fe189b64582dc6633424c148de719478172bff9293eb1f2a304dc7096a2
+32f3cc59bcdfff606ffe4d893f683cd3ba6ee94ae1360e84aebffdbdaf032749
 ```
 
 ## 从源码构建
@@ -74,4 +83,4 @@ Holo Video Uploader.app
 - 上传完成后设备立即重新打开视频，并在 EOF 后自动循环。
 - 视频列表保存在 Mac 上；选择播放时会把对应 AVI 重新上传到设备。
 
-应用不使用网络，不会上传视频到云端。
+应用只访问用户填写的后端地址；不会把本机视频上传到其他云端。

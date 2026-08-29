@@ -1,4 +1,5 @@
 import AppKit
+import CryptoKit
 import Darwin
 import Foundation
 
@@ -12,6 +13,142 @@ private enum HoloError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .message(let text): return text
+        }
+    }
+}
+
+private struct BackendEnvelope: Decodable {
+    let id: String
+    let name: String?
+    let downloadURL: String?
+    let mp4URL: String?
+    let url: String?
+    let ackURL: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, url
+        case downloadURL = "download_url"
+        case mp4URL = "mp4_url"
+        case ackURL = "ack_url"
+    }
+}
+
+private struct BackendVideo {
+    let id: String
+    let name: String
+    let data: Data
+    let ackURL: URL?
+}
+
+private final class BackendClient {
+    private let maximumDownloadSize = 256 * 1024 * 1024
+
+    private func request(_ request: URLRequest, timeout: TimeInterval = 90) throws -> (Data, HTTPURLResponse) {
+        let semaphore = DispatchSemaphore(value: 0)
+        var resultData: Data?
+        var resultResponse: HTTPURLResponse?
+        var resultError: Error?
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.timeoutIntervalForRequest = timeout
+        configuration.timeoutIntervalForResource = timeout
+        let session = URLSession(configuration: configuration)
+        let task = session.dataTask(with: request) { data, response, error in
+            resultData = data
+            resultResponse = response as? HTTPURLResponse
+            resultError = error
+            semaphore.signal()
+        }
+        task.resume()
+        guard semaphore.wait(timeout: .now() + timeout + 5) == .success else {
+            task.cancel()
+            throw HoloError.message("后端请求超时")
+        }
+        if let resultError { throw resultError }
+        guard let response = resultResponse else {
+            throw HoloError.message("后端没有返回 HTTP 响应")
+        }
+        let data = resultData ?? Data()
+        guard data.count <= maximumDownloadSize else {
+            throw HoloError.message("后端视频超过 256 MB")
+        }
+        return (data, response)
+    }
+
+    private func authorizedRequest(url: URL, token: String) -> URLRequest {
+        var request = URLRequest(url: url)
+        request.setValue("application/json, video/mp4", forHTTPHeaderField: "Accept")
+        if !token.isEmpty {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        return request
+    }
+
+    private func validateMP4(_ data: Data) throws {
+        guard data.count >= 12 else { throw HoloError.message("后端返回的视频为空") }
+        let header = data.prefix(32)
+        guard header.range(of: Data("ftyp".utf8)) != nil else {
+            throw HoloError.message("后端返回的内容不是 MP4")
+        }
+    }
+
+    func fetch(endpoint: URL, token: String, skippingID: String?) throws -> BackendVideo? {
+        var metadataRequest = authorizedRequest(url: endpoint, token: token)
+        if let skippingID, skippingID.hasPrefix("\"") {
+            metadataRequest.setValue(skippingID, forHTTPHeaderField: "If-None-Match")
+        }
+        let (body, response) = try request(metadataRequest)
+        if response.statusCode == 204 || response.statusCode == 304 { return nil }
+        guard (200...299).contains(response.statusCode) else {
+            throw HoloError.message("后端返回 HTTP \(response.statusCode)")
+        }
+
+        let contentType = response.value(forHTTPHeaderField: "Content-Type")?.lowercased() ?? ""
+        if contentType.contains("application/json") {
+            let envelope = try JSONDecoder().decode(BackendEnvelope.self, from: body)
+            if envelope.id == skippingID { return nil }
+            let address = envelope.downloadURL ?? envelope.mp4URL ?? envelope.url
+            guard !envelope.id.isEmpty, let address, let downloadURL = URL(string: address) else {
+                throw HoloError.message("后端 JSON 缺少 id 或 download_url")
+            }
+            let downloadToken = downloadURL.host == endpoint.host ? token : ""
+            let (videoData, videoResponse) = try request(
+                authorizedRequest(url: downloadURL, token: downloadToken), timeout: 180)
+            guard (200...299).contains(videoResponse.statusCode) else {
+                throw HoloError.message("MP4 下载返回 HTTP \(videoResponse.statusCode)")
+            }
+            try validateMP4(videoData)
+            return BackendVideo(
+                id: envelope.id,
+                name: envelope.name ?? "backend-\(envelope.id).mp4",
+                data: videoData,
+                ackURL: envelope.ackURL.flatMap(URL.init(string:))
+            )
+        }
+
+        try validateMP4(body)
+        let digest = SHA256.hash(data: body).map { String(format: "%02x", $0) }.joined()
+        let identity = response.value(forHTTPHeaderField: "ETag") ?? digest
+        if identity == skippingID { return nil }
+        let disposition = response.value(forHTTPHeaderField: "Content-Disposition") ?? ""
+        let suggestedName = disposition
+            .components(separatedBy: "filename=").last?
+            .trimmingCharacters(in: CharacterSet(charactersIn: "\"' "))
+        return BackendVideo(
+            id: identity,
+            name: suggestedName?.isEmpty == false ? suggestedName! : "backend-video.mp4",
+            data: body,
+            ackURL: nil
+        )
+    }
+
+    func acknowledge(url: URL, id: String, token: String) throws {
+        var request = authorizedRequest(url: url, token: token)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["id": id, "status": "played"])
+        let (_, response) = try self.request(request, timeout: 20)
+        guard (200...299).contains(response.statusCode) else {
+            throw HoloError.message("确认接口返回 HTTP \(response.statusCode)")
         }
     }
 }
@@ -161,8 +298,13 @@ private final class MainController: NSObject, NSTableViewDataSource, NSTableView
     private let status = NSTextField(labelWithString: "连接设备后，把视频拖入窗口")
     private let progress = NSProgressIndicator()
     private let playButton = NSButton(title: "播放到设备", target: nil, action: nil)
+    private let backendButton = NSButton(title: "从后端接收", target: nil, action: nil)
+    private let endpointField = NSTextField()
+    private let tokenField = NSSecureTextField()
+    private let autoReceive = NSButton(checkboxWithTitle: "自动接收（每 10 秒）", target: nil, action: nil)
     private var videos: [URL] = []
     private var isBusy = false
+    private var backendTimer: Timer?
 
     private lazy var libraryURL: URL = {
         let movies = FileManager.default.urls(for: .moviesDirectory, in: .userDomainMask)[0]
@@ -174,6 +316,12 @@ private final class MainController: NSObject, NSTableViewDataSource, NSTableView
         buildInterface()
         try? FileManager.default.createDirectory(at: libraryURL, withIntermediateDirectories: true)
         reloadLibrary()
+        endpointField.stringValue = UserDefaults.standard.string(forKey: "backendEndpoint") ?? ""
+        autoReceive.state = UserDefaults.standard.bool(forKey: "backendAutoReceive") ? .on : .off
+        backendTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
+            guard let self, self.autoReceive.state == .on else { return }
+            self.receiveFromBackend(silent: true)
+        }
     }
 
     private func buildInterface() {
@@ -203,6 +351,40 @@ private final class MainController: NSObject, NSTableViewDataSource, NSTableView
         playButton.action = #selector(playSelected)
         playButton.keyEquivalent = "\r"
 
+        endpointField.placeholderString = "https://backend.example.com/api/device/next"
+        tokenField.placeholderString = "Bearer Token（可选，本次运行有效）"
+        backendButton.target = self
+        backendButton.action = #selector(receiveFromBackendButton)
+        autoReceive.target = self
+        autoReceive.action = #selector(autoReceiveChanged)
+
+        let endpointLabel = NSTextField(labelWithString: "接口")
+        endpointLabel.alignment = .right
+        let tokenLabel = NSTextField(labelWithString: "Token")
+        tokenLabel.alignment = .right
+        let backendGrid = NSGridView(views: [
+            [endpointLabel, endpointField, backendButton],
+            [tokenLabel, tokenField, autoReceive]
+        ])
+        backendGrid.rowSpacing = 8
+        backendGrid.columnSpacing = 8
+        backendGrid.column(at: 0).xPlacement = .trailing
+        backendGrid.column(at: 1).width = 370
+        backendGrid.translatesAutoresizingMaskIntoConstraints = false
+
+        let backendBox = NSBox()
+        backendBox.title = "后端 MP4 接收"
+        backendBox.boxType = .primary
+        backendBox.translatesAutoresizingMaskIntoConstraints = false
+        backendBox.contentView?.addSubview(backendGrid)
+        if let content = backendBox.contentView {
+            NSLayoutConstraint.activate([
+                backendGrid.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 10),
+                backendGrid.trailingAnchor.constraint(lessThanOrEqualTo: content.trailingAnchor, constant: -10),
+                backendGrid.centerYAnchor.constraint(equalTo: content.centerYAnchor)
+            ])
+        }
+
         progress.isIndeterminate = false
         progress.minValue = 0
         progress.maxValue = 1
@@ -217,14 +399,19 @@ private final class MainController: NSObject, NSTableViewDataSource, NSTableView
         buttons.spacing = 10
         buttons.translatesAutoresizingMaskIntoConstraints = false
 
-        [dropView, scroll, buttons, progress, status].forEach { view.addSubview($0) }
+        [dropView, backendBox, scroll, buttons, progress, status].forEach { view.addSubview($0) }
         NSLayoutConstraint.activate([
             dropView.topAnchor.constraint(equalTo: view.topAnchor, constant: 22),
             dropView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 22),
             dropView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -22),
-            dropView.heightAnchor.constraint(equalToConstant: 150),
+            dropView.heightAnchor.constraint(equalToConstant: 130),
 
-            scroll.topAnchor.constraint(equalTo: dropView.bottomAnchor, constant: 16),
+            backendBox.topAnchor.constraint(equalTo: dropView.bottomAnchor, constant: 14),
+            backendBox.leadingAnchor.constraint(equalTo: dropView.leadingAnchor),
+            backendBox.trailingAnchor.constraint(equalTo: dropView.trailingAnchor),
+            backendBox.heightAnchor.constraint(equalToConstant: 96),
+
+            scroll.topAnchor.constraint(equalTo: backendBox.bottomAnchor, constant: 14),
             scroll.leadingAnchor.constraint(equalTo: dropView.leadingAnchor),
             scroll.trailingAnchor.constraint(equalTo: dropView.trailingAnchor),
             scroll.bottomAnchor.constraint(equalTo: buttons.topAnchor, constant: -16),
@@ -334,6 +521,89 @@ private final class MainController: NSObject, NSTableViewDataSource, NSTableView
         }
     }
 
+    @objc private func receiveFromBackendButton() {
+        receiveFromBackend(silent: false)
+    }
+
+    @objc private func autoReceiveChanged() {
+        UserDefaults.standard.set(autoReceive.state == .on, forKey: "backendAutoReceive")
+        if autoReceive.state == .on { receiveFromBackend(silent: false) }
+    }
+
+    private func receiveFromBackend(silent: Bool) {
+        guard !isBusy else { return }
+        let address = endpointField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        if address.isEmpty {
+            if !silent { status.stringValue = "请先填写后端接口 URL" }
+            return
+        }
+        guard let endpoint = URL(string: address),
+              endpoint.scheme == "https" ||
+                (endpoint.scheme == "http" && ["localhost", "127.0.0.1"].contains(endpoint.host ?? "")) else {
+            status.stringValue = "接口必须使用 HTTPS（本机测试可使用 localhost）"
+            return
+        }
+
+        let token = tokenField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        UserDefaults.standard.set(address, forKey: "backendEndpoint")
+        setBusy(true, text: "正在检查后端 MP4…")
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self else { return }
+            do {
+                let client = BackendClient()
+                let previousReceipt = UserDefaults.standard.string(forKey: "backendLastReceipt")
+                let receiptPrefix = "\(endpoint.absoluteString)|"
+                let previousID = previousReceipt?.hasPrefix(receiptPrefix) == true
+                    ? String(previousReceipt!.dropFirst(receiptPrefix.count)) : nil
+                guard let item = try client.fetch(endpoint: endpoint, token: token, skippingID: previousID) else {
+                    DispatchQueue.main.async { self.setBusy(false, text: "后端暂无新视频") }
+                    return
+                }
+
+                let receipt = "\(endpoint.absoluteString)|\(item.id)"
+                if UserDefaults.standard.string(forKey: "backendLastReceipt") == receipt {
+                    DispatchQueue.main.async { self.setBusy(false, text: "后端视频已经播放过") }
+                    return
+                }
+
+                let temporaryDirectory = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("HoloBackend-\(UUID().uuidString)", isDirectory: true)
+                try FileManager.default.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
+                defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
+                let incomingName = item.name.lowercased().hasSuffix(".mp4") ? item.name : "\(item.name).mp4"
+                let incoming = temporaryDirectory.appendingPathComponent(incomingName)
+                try item.data.write(to: incoming, options: .atomic)
+
+                let output = self.libraryURL.appendingPathComponent("\(self.safeName(for: incoming)).avi")
+                self.updateStatus("后端视频转换中…", progress: 0)
+                try self.convert(input: incoming, output: output)
+                self.updateStatus("后端视频 USB 上传中…", progress: 0)
+                try SerialUploader().upload(file: output) { value in
+                    self.updateStatus("USB 上传：\(Int(value * 100))%", progress: value)
+                }
+
+                UserDefaults.standard.set(receipt, forKey: "backendLastReceipt")
+                var finalStatus = "后端视频已接收，设备正在循环播放"
+                if let ackURL = item.ackURL {
+                    do {
+                        let ackToken = ackURL.host == endpoint.host ? token : ""
+                        try client.acknowledge(url: ackURL, id: item.id, token: ackToken)
+                    } catch {
+                        finalStatus = "播放成功，但后端确认失败：\(error.localizedDescription)"
+                    }
+                }
+                DispatchQueue.main.async {
+                    self.reloadLibrary(selecting: output)
+                    self.setBusy(false, text: finalStatus)
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    self.setBusy(false, text: "后端接收失败：\(error.localizedDescription)")
+                }
+            }
+        }
+    }
+
     private func convert(input: URL, output: URL) throws {
         guard let ffmpeg = Bundle.main.url(forResource: "ffmpeg", withExtension: nil) else {
             throw HoloError.message("应用中缺少 FFmpeg")
@@ -389,6 +659,9 @@ private final class MainController: NSObject, NSTableViewDataSource, NSTableView
         status.stringValue = text
         progress.doubleValue = busy ? progress.doubleValue : 0
         table.isEnabled = !busy
+        backendButton.isEnabled = !busy
+        endpointField.isEnabled = !busy
+        tokenField.isEnabled = !busy
         playButton.isEnabled = !busy && table.selectedRow >= 0
     }
 }
@@ -400,13 +673,13 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         controller = MainController()
         window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 720, height: 560),
+            contentRect: NSRect(x: 0, y: 0, width: 760, height: 680),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
         window.title = "Holo Video Uploader"
-        window.minSize = NSSize(width: 620, height: 500)
+        window.minSize = NSSize(width: 700, height: 620)
         window.contentView = controller.view
         window.center()
         window.makeKeyAndOrderFront(nil)
