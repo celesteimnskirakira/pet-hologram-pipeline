@@ -45,7 +45,7 @@ ARK_BASE_URL = os.environ.get("ARK_BASE_URL", "https://ark.cn-beijing.volces.com
 AGNES_BASE_URL = os.environ.get("AGNES_BASE_URL", "https://apihub.agnes-ai.com")
 
 # Ark model ids. Pinned on purpose: floating aliases change pricing tiers silently.
-ARK_VISION_MODEL = os.environ.get("ARK_VISION_MODEL", "doubao-seed-1-6-flash-250828")
+ARK_VISION_MODEL = os.environ.get("ARK_VISION_MODEL", "doubao-seed-2-0-pro-260215")
 ARK_IMAGE_MODEL = os.environ.get("ARK_IMAGE_MODEL", "doubao-seedream-4-0-250828")
 ARK_VIDEO_MODEL = os.environ.get("ARK_VIDEO_MODEL", "doubao-seedance-2-0-mini-260615")
 
