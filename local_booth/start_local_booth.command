@@ -7,6 +7,12 @@ PYTHON="$SCRIPT_DIR/.venv/bin/python"
 
 cd "$REPO_DIR"
 
+# Reuse a project-level FFmpeg tool when this checkout sits next to the
+# firmware workspace. This is separate from Holo Video Uploader.app.
+if [[ -z "${FFMPEG_PATH:-}" && -x "$REPO_DIR/../tools/bin/ffmpeg" ]]; then
+  export FFMPEG_PATH="$REPO_DIR/../tools/bin/ffmpeg"
+fi
+
 if [[ ! -x "$PYTHON" ]]; then
   echo "首次使用请先双击 local_booth/setup_local_booth.command"
   read -k 1 "?按任意键关闭…"

@@ -28,7 +28,7 @@ Mac 负责网页、队列、文件和 USB，因而不需要部署云服务器、
 
 1. 下载并解压仓库。
 2. 将 `.env.example` 复制为 `.env`，填入 `ARK_API_KEY` 或 `AGNES_API_KEY`。
-3. 确认 Mac 已安装 FFmpeg（Homebrew：`brew install ffmpeg`）。
+3. 确认 Mac 已安装 FFmpeg（Homebrew：`brew install ffmpeg`）。如果仓库旁边已有 `tools/bin/ffmpeg`，启动脚本会自动使用它，无需重复安装。
 4. 双击 `local_booth/setup_local_booth.command`。
 
 ## 每次现场启动
