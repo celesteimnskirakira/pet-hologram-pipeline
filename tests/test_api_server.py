@@ -21,6 +21,7 @@ class ApiServerSecurityTests(unittest.TestCase):
             "BACKEND_SECRET": api_server.BACKEND_SECRET,
             "CALLBACK_SECRET": api_server.CALLBACK_SECRET,
             "ARTIFACT_SECRET": api_server.ARTIFACT_SECRET,
+            "PROJECTION_SECRET": api_server.PROJECTION_SECRET,
             "ALLOWED_IMAGE_HOSTS": api_server.ALLOWED_IMAGE_HOSTS,
             "ALLOWED_CALLBACK_HOSTS": api_server.ALLOWED_CALLBACK_HOSTS,
             "ALLOW_LOCAL_HTTP": api_server.ALLOW_LOCAL_HTTP,
@@ -29,6 +30,7 @@ class ApiServerSecurityTests(unittest.TestCase):
         api_server.BACKEND_SECRET = "backend-test-secret"
         api_server.CALLBACK_SECRET = "callback-test-secret"
         api_server.ARTIFACT_SECRET = "artifact-test-secret"
+        api_server.PROJECTION_SECRET = "device-test-secret"
         api_server.ALLOWED_IMAGE_HOSTS = ("storage.example.test",)
         api_server.ALLOWED_CALLBACK_HOSTS = ("app.example.test",)
         api_server.ALLOW_LOCAL_HTTP = False
@@ -112,6 +114,49 @@ class ApiServerSecurityTests(unittest.TestCase):
 
         api_server.JOB_SLOTS = FullCapacity()
         self.assertFalse(api_server._reserve_job_slot())
+
+    def test_device_bearer_authentication(self):
+        self.assertTrue(api_server._device_authorized("Bearer device-test-secret"))
+        self.assertTrue(api_server._device_authorized("bearer device-test-secret"))
+        self.assertFalse(api_server._device_authorized("device-test-secret"))
+        self.assertFalse(api_server._device_authorized("Bearer wrong-secret"))
+
+    def test_device_queue_and_played_acknowledgement(self):
+        event = api_server.threading.Event()
+        job = {
+            "task_id": "task_abcdef",
+            "display_code": "123456",
+            "status": "processing",
+            "stage": "delivering",
+            "deliveryStatus": "waiting_for_device",
+            "delivery_url": "https://api.example.test/video.mp4?signature=test",
+            "delivery_name": "pet-loop.mp4",
+            "delivery_sha256": "a" * 64,
+            "_delivery_event": event,
+        }
+        with api_server.LOCK:
+            api_server.JOBS[job["task_id"]] = job
+
+        item = api_server._next_device_item()
+        self.assertIsNotNone(item)
+        self.assertEqual(item["id"], "task_abcdef")
+        self.assertEqual(item["name"], "pet-loop.mp4")
+        self.assertTrue(item["ack_url"].endswith("/api/device/ack"))
+        self.assertTrue(api_server._acknowledge_device("task_abcdef", "played"))
+        self.assertTrue(event.is_set())
+        self.assertEqual(job["deliveryStatus"], "ready")
+        self.assertIsNone(api_server._next_device_item())
+
+    def test_device_ack_rejects_invalid_or_non_waiting_job(self):
+        self.assertFalse(api_server._acknowledge_device("bad", "played"))
+        self.assertFalse(api_server._acknowledge_device("task_missing", "played"))
+        with api_server.LOCK:
+            api_server.JOBS["task_abcdef"] = {
+                "task_id": "task_abcdef",
+                "status": "processing",
+                "stage": "generating_video",
+            }
+        self.assertFalse(api_server._acknowledge_device("task_abcdef", "played"))
 
     def test_callback_failure_is_recorded_without_crashing(self):
         job = {

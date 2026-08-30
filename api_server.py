@@ -34,8 +34,10 @@ LOCK = threading.Lock()
 BACKEND_SECRET = os.environ.get("GENERATION_BACKEND_SECRET", "")
 CALLBACK_SECRET = os.environ.get("GENERATION_CALLBACK_SECRET", "")
 ARTIFACT_SECRET = os.environ.get("GENERATION_ARTIFACT_SECRET", "")
-PROJECTION_URL = os.environ.get("PROJECTION_AGENT_URL", "http://127.0.0.1:8001")
 PROJECTION_SECRET = os.environ.get("PROJECTION_AGENT_SECRET", "")
+DELIVERY_TIMEOUT_S = max(
+    60, int(os.environ.get("PROJECTION_DELIVERY_TIMEOUT_S", "3600"))
+)
 PUBLIC_BASE_URL = os.environ.get("GENERATION_PUBLIC_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
 ARTIFACT_TTL_S = max(60, int(os.environ.get("GENERATION_ARTIFACT_TTL_S", "3600")))
 MAX_CONCURRENT_JOBS = max(1, int(os.environ.get("GENERATION_MAX_CONCURRENT", "1")))
@@ -133,6 +135,54 @@ def _artifact_request_allowed(
 
 def _reserve_job_slot() -> bool:
     return JOB_SLOTS.acquire(blocking=False)
+
+
+def _device_authorized(value: str) -> bool:
+    scheme, separator, token = value.partition(" ")
+    return bool(
+        separator
+        and scheme.lower() == "bearer"
+        and _secret_matches(token.strip(), PROJECTION_SECRET)
+    )
+
+
+def _next_device_item() -> dict[str, Any] | None:
+    with LOCK:
+        for job in JOBS.values():
+            if (
+                job.get("stage") == "delivering"
+                and job.get("deliveryStatus") == "waiting_for_device"
+                and job.get("delivery_url")
+            ):
+                return {
+                    "id": job["task_id"],
+                    "name": job.get("delivery_name") or f"{job['task_id']}.mp4",
+                    "download_url": job["delivery_url"],
+                    "ack_url": f"{PUBLIC_BASE_URL}/api/device/ack",
+                    "sha256": job.get("delivery_sha256"),
+                    "display_code": job.get("display_code"),
+                }
+    return None
+
+
+def _acknowledge_device(task_id: str, status: str) -> bool:
+    if not TASK_ID_RE.fullmatch(task_id) or status != "played":
+        return False
+    with LOCK:
+        job = JOBS.get(task_id)
+        if not job:
+            return False
+        if job.get("status") == "completed":
+            return True
+        if job.get("stage") != "delivering":
+            return False
+        job["deliveryStatus"] = "ready"
+        job["deviceAckStatus"] = status
+        job["deviceAckAt"] = datetime.now(timezone.utc).isoformat()
+        event = job.get("_delivery_event")
+        if isinstance(event, threading.Event):
+            event.set()
+    return True
 
 
 class _SafeImageRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -281,24 +331,30 @@ def _run_job(job: dict[str, Any]) -> None:
             selectedAction=selected,
         )
 
-        _callback(job, status="processing", stage="delivering", progress=92, message="正在发送到投影电脑", event="delivery_started")
+        delivery_event = threading.Event()
         digest = hashlib.sha256(video.read_bytes()).hexdigest()
-        projection_payload = {
-            "jobId": task_id,
-            "artifactUrl": video_url,
-            "sha256": digest,
-            "displayCode": job["display_code"],
-        }
-        request = urllib.request.Request(
-            PROJECTION_URL.rstrip("/") + "/api/v1/projection/jobs",
-            data=_json_bytes(projection_payload),
-            headers={"Content-Type": "application/json", "X-Projection-Secret": PROJECTION_SECRET},
-            method="POST",
+        with LOCK:
+            job.update(
+                {
+                    "video": str(video),
+                    "delivery_url": video_url,
+                    "delivery_name": video.name,
+                    "delivery_sha256": digest,
+                    "deliveryStatus": "waiting_for_device",
+                    "_delivery_event": delivery_event,
+                }
+            )
+        _callback(
+            job,
+            status="processing",
+            stage="delivering",
+            progress=92,
+            message="等待投影电脑接收并写入设备",
+            deliveryStatus="waiting_for_device",
+            event="delivery_started",
         )
-        with urllib.request.urlopen(request, timeout=180) as response:
-            delivered = json.loads(response.read().decode("utf-8"))
-        if not (delivered.get("received") and delivered.get("ready") and delivered.get("sha256") == digest):
-            raise RuntimeError("projection computer did not confirm file integrity")
+        if not delivery_event.wait(DELIVERY_TIMEOUT_S):
+            raise TimeoutError("projection computer did not acknowledge playback")
         _callback(
             job,
             status="completed",
@@ -357,8 +413,27 @@ class Handler(BaseHTTPRequestHandler):
             self.headers.get("X-Generation-Backend-Secret", ""), BACKEND_SECRET
         )
 
+    def _device_authorized(self) -> bool:
+        return _device_authorized(self.headers.get("Authorization", ""))
+
     def do_POST(self) -> None:  # noqa: N802
         route = urlparse(self.path).path
+        if route == "/api/device/ack":
+            if not self._device_authorized():
+                self._send(401, {"error": "unauthorized"})
+                return
+            try:
+                body = self._read_json()
+                task_id = str(body["id"])
+                status = str(body["status"])
+            except Exception as exc:
+                self._send(400, {"error": "invalid_body", "message": str(exc)})
+                return
+            if not _acknowledge_device(task_id, status):
+                self._send(404, {"error": "job_not_waiting"})
+                return
+            self._send(200, {"ok": True, "id": task_id, "status": "played"})
+            return
         if route != "/api/v1/jobs":
             self._send(404, {"error": "not_found"})
             return
@@ -416,6 +491,16 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
         parsed_request = urlparse(self.path)
         route = parsed_request.path
+        if route == "/api/device/next":
+            if not self._device_authorized():
+                self._send(401, {"error": "unauthorized"})
+                return
+            item = _next_device_item()
+            if item is None:
+                self._send(204, b"")
+                return
+            self._send(200, item)
+            return
         prefix = "/api/v1/artifacts/"
         if route.startswith(prefix):
             parts = route[len(prefix):].split("/", 1)

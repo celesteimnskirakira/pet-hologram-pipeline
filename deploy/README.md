@@ -24,7 +24,7 @@ PETTA_ENV_FILE=/root/petta-backend.env \
 bash /opt/petta/backend/deploy/install_backend_service.sh
 ```
 
-The installer creates the unprivileged `petta` user, virtual environment, loopback-only generation service, and loopback-only projection simulator used by staging delivery checks.
+The installer creates the unprivileged `petta` user, virtual environment, loopback-only generation service, and the legacy loopback projection simulator used only by staging checks.
 
 ## Acceptance checks
 
@@ -43,3 +43,15 @@ Install `cloudflared-origin.conf` as `/etc/systemd/system/cloudflared.service.d/
 The public hostname is `genpichong.dpdns.org`. Its Cloudflare DNS record must target `653a6233-d4f6-4725-9d29-93eb06c1e0f7.cfargotunnel.com`, or the equivalent Public Hostname must be created in the Tunnel dashboard. Cloudflare handles public HTTPS; the origin remains loopback-only.
 
 The independent frontend is published as `app.genpichong.dpdns.org -> http://127.0.0.1:3000`. Both image and callback allowlists use that exact hostname.
+
+## Holo Video Uploader device delivery
+
+The real projection computer runs Holo Video Uploader and polls the generation host over HTTPS:
+
+```text
+GET  https://genpichong.dpdns.org/api/device/next
+POST https://genpichong.dpdns.org/api/device/ack
+Authorization: Bearer <PROJECTION_AGENT_SECRET>
+```
+
+The generation job remains in `delivering` until the Mac app has downloaded and converted the MP4, the ESP32 has acknowledged the USB upload, and the app posts `status=played`. Only then does the backend callback the frontend with `completed`.
