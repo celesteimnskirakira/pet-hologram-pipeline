@@ -1,0 +1,9 @@
+{
+  "route": "generating",
+  "name": "生成中",
+  "nav_type": "stack",
+  "parent": "upload",
+  "order_index": 2,
+  "icon": "loader",
+  "summary": "分阶段生成等待"
+}

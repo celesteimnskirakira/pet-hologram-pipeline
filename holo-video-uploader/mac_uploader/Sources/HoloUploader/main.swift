@@ -325,8 +325,13 @@ private final class MainController: NSObject, NSTableViewDataSource, NSTableView
         try? FileManager.default.createDirectory(at: libraryURL, withIntermediateDirectories: true)
         reloadLibrary()
         layoutPopup.selectItem(at: UserDefaults.standard.integer(forKey: "videoLayout"))
-        endpointField.stringValue = UserDefaults.standard.string(forKey: "backendEndpoint") ?? ""
-        autoReceive.state = UserDefaults.standard.bool(forKey: "backendAutoReceive") ? .on : .off
+        endpointField.stringValue = UserDefaults.standard.string(forKey: "backendEndpoint")
+            ?? "https://genpichong.dpdns.org/api/device/next"
+        tokenField.stringValue = ProcessInfo.processInfo.environment["HOLO_DEVICE_TOKEN"] ?? ""
+        let autoReceiveFromEnvironment = ProcessInfo.processInfo.environment["HOLO_AUTO_RECEIVE"] == "1"
+        autoReceive.state = (
+            autoReceiveFromEnvironment || UserDefaults.standard.bool(forKey: "backendAutoReceive")
+        ) ? .on : .off
         backendTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
             guard let self, self.autoReceive.state == .on else { return }
             self.receiveFromBackend(silent: true)
@@ -608,19 +613,17 @@ private final class MainController: NSObject, NSTableViewDataSource, NSTableView
                     self.updateStatus("USB 上传：\(Int(value * 100))%", progress: value)
                 }
 
-                UserDefaults.standard.set(receipt, forKey: "backendLastReceipt")
-                var finalStatus = "后端视频已接收，设备正在循环播放"
                 if let ackURL = item.ackURL {
-                    do {
-                        let ackToken = ackURL.host == endpoint.host ? token : ""
-                        try client.acknowledge(url: ackURL, id: item.id, token: ackToken)
-                    } catch {
-                        finalStatus = "播放成功，但后端确认失败：\(error.localizedDescription)"
-                    }
+                    let ackToken = ackURL.host == endpoint.host ? token : ""
+                    try client.acknowledge(url: ackURL, id: item.id, token: ackToken)
                 }
+                // Persist the receipt only after the ESP32 upload and backend
+                // acknowledgement both succeed. A transient ack failure will
+                // therefore be retried by the next automatic poll.
+                UserDefaults.standard.set(receipt, forKey: "backendLastReceipt")
                 DispatchQueue.main.async {
                     self.reloadLibrary(selecting: output)
-                    self.setBusy(false, text: finalStatus)
+                    self.setBusy(false, text: "后端视频已接收，设备正在循环播放")
                 }
             } catch {
                 DispatchQueue.main.async {

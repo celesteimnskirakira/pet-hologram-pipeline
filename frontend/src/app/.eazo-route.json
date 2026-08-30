@@ -1,0 +1,8 @@
+{
+  "route": "",
+  "name": "首页",
+  "nav_type": "stack",
+  "order_index": 0,
+  "icon": "sparkles",
+  "summary": "PETTA 欢迎页，开始引导"
+}

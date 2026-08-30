@@ -1,0 +1,74 @@
+{
+  "common": {
+    "signIn": "登录",
+    "signOut": "退出登录",
+    "loading": "加载中…",
+    "on": "开",
+    "off": "关",
+    "close": "关闭",
+    "save": "保存",
+    "cancel": "取消",
+    "edit": "编辑",
+    "delete": "删除",
+    "userId": "用户 ID"
+  },
+  "language": {
+    "label": "语言",
+    "triggerLabel": "语言：{{language}}",
+    "followSystem": "跟随系统",
+    "followSystemWithLanguage": "跟随系统（{{language}}）",
+    "enUS": "English",
+    "zhCN": "中文"
+  },
+  "errors": {
+    "notFound": {
+      "code": "404",
+      "title": "页面未找到",
+      "description": "你访问的页面不存在，或已被移动。",
+      "backHome": "返回首页"
+    },
+    "generic": {
+      "title": "出了点问题",
+      "description": "发生了意外错误。你可以重试，或返回首页继续。",
+      "tryAgain": "重试",
+      "backHome": "返回首页"
+    }
+  },
+  "petta": {
+    "brandTagline": "全息随身宠物",
+    "home": {
+      "copy": "上传照片，它会来到身边",
+      "sub": "把你的宠物变成全息随身宠物，在跟屁宠上陪着你。",
+      "start": "开始"
+    },
+    "upload": {
+      "title": "上传宠物照片",
+      "hint": "正脸清晰、光线充足的照片效果更好。",
+      "choose": "选择宠物照片",
+      "retake": "重新选择",
+      "processing": "正在读取照片…",
+      "back": "返回",
+      "generate": "开始生成",
+      "errorTitle": "上传失败",
+      "errorRetry": "重试"
+    },
+    "generating": {
+      "title": "它正在赶来见你",
+      "sub": "大约一分钟，它就会出现在你面前。",
+      "stageUploading": "认出它了",
+      "stageCreatingTask": "正在准备出发",
+      "stageGeneratingVideo": "正在让它动起来",
+      "stageSendingHardware": "正在赶往你的跟屁宠",
+      "percent": "{{value}}%",
+      "errorTitle": "生成失败",
+      "errorSub": "出了点问题，请重试。",
+      "retry": "重试"
+    },
+    "done": {
+      "title": "毛孩已登场",
+      "sub": "你的全息宠物正在你面前跟屁宠的底座屏幕与透明亚克力板上播放。",
+      "selectedAction": "本次随机动作：{{action}}",
+      "again": "再做一只"
+    }
+  }
+}
