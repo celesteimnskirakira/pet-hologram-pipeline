@@ -1,6 +1,6 @@
 import { normalizeLocale, type LocaleCode } from "@/lib/i18n/locale";
 
-export const LOCALE_STORAGE_KEY = "eazo-app.locale.v1";
+export const LOCALE_STORAGE_KEY = "petta.locale.v1";
 
 export type LocalePreference = LocaleCode | "system";
 

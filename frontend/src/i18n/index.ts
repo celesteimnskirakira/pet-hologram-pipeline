@@ -55,7 +55,7 @@ export const changeLocale = async (preference: LocalePreference) => {
   await i18n.changeLanguage(resolveLocalePreference(preference));
   syncDocumentLanguage(i18n.language);
   window.dispatchEvent(
-    new CustomEvent("eazo-locale-preference-changed", { detail: preference }),
+    new CustomEvent("petta-locale-preference-changed", { detail: preference }),
   );
 };
 

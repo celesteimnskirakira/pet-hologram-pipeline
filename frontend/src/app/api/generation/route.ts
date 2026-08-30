@@ -10,8 +10,8 @@ const GENERATION_BACKEND_SECRET = process.env.GENERATION_BACKEND_SECRET ?? "";
  * POST /api/generation
  * Creates a holographic-pet generation task for an uploaded photo.
  * Body: { imageId?: string; imageUrl?: string }
- * The actual video model + hardware dispatch run in an external backend, which
- * will later report terminal status back onto this task row.
+ * The frontend persists the task before submitting it to the Python service so
+ * authenticated callbacks survive page reloads and remain auditable.
  */
 export async function POST(request: NextRequest) {
   if (!GENERATION_BACKEND_SECRET || !CALLBACK_BASE_URL) {
@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
   try {
     body = (await request.json()) as typeof body;
   } catch {
-    body = {};
+    return NextResponse.json({ error: "invalid_body" }, { status: 400 });
   }
 
   const imageId = typeof body.imageId === "string" ? body.imageId : null;
@@ -76,5 +76,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "generation_backend_unavailable" }, { status: 503 });
   }
 
-  return NextResponse.json({ taskId: task.id, displayCode: task.displayCode });
+  return NextResponse.json(
+    { taskId: task.id, displayCode: task.displayCode },
+    { status: 202 }
+  );
 }

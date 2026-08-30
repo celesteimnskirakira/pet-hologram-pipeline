@@ -21,11 +21,11 @@ export function LangToggle({ className }: { className?: string }) {
   const subscribe = useCallback(
     (sync: () => void) => {
       i18n.on("languageChanged", sync);
-      window.addEventListener("eazo-locale-preference-changed", sync);
+      window.addEventListener("petta-locale-preference-changed", sync);
       window.addEventListener("storage", sync);
       return () => {
         i18n.off("languageChanged", sync);
-        window.removeEventListener("eazo-locale-preference-changed", sync);
+        window.removeEventListener("petta-locale-preference-changed", sync);
         window.removeEventListener("storage", sync);
       };
     },

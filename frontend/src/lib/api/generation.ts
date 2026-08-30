@@ -1,4 +1,3 @@
-import { storage } from "@eazo/sdk";
 import { request } from "./request";
 
 export type GenerationStage =
@@ -38,14 +37,16 @@ export interface UploadResult {
 }
 
 /**
- * Uploads the pet photo directly to Eazo object storage (S3 via presigned URL)
- * and returns its permanent CDN url. No file bytes pass through our backend.
+ * Uploads the pet photo to the self-hosted Next.js service and returns a
+ * short-lived signed HTTPS URL that the Python generation service can fetch.
  */
 export async function uploadPhoto(file: File): Promise<UploadResult> {
-  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_") || "photo";
-  const path = `pet-photos/${Date.now()}-${safeName}`;
-  const { key, url } = await storage.upload(path, file);
-  return { imageId: key, imageUrl: url };
+  const form = new FormData();
+  form.set("file", file);
+  const response = await request("/api/uploads", { method: "POST", body: form });
+  if (!response.ok) throw new Error("upload_photo_failed");
+  const upload = (await response.json()) as { key: string; url: string };
+  return { imageId: upload.key, imageUrl: upload.url };
 }
 
 /** Creates a generation task for an uploaded photo; returns the task id. */

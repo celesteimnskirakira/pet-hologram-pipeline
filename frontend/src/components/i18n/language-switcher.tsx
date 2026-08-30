@@ -20,11 +20,11 @@ export function LanguageSwitcher() {
   const subscribePreference = useCallback(
     (sync: () => void) => {
       i18n.on("languageChanged", sync);
-      window.addEventListener("eazo-locale-preference-changed", sync);
+      window.addEventListener("petta-locale-preference-changed", sync);
       window.addEventListener("storage", sync);
       return () => {
         i18n.off("languageChanged", sync);
-        window.removeEventListener("eazo-locale-preference-changed", sync);
+        window.removeEventListener("petta-locale-preference-changed", sync);
         window.removeEventListener("storage", sync);
       };
     },
