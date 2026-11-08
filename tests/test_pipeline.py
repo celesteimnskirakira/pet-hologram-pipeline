@@ -36,6 +36,11 @@ from server import parse_multipart  # noqa: E402
 HAS_FFMPEG = shutil.which("ffmpeg") is not None and shutil.which("ffprobe") is not None
 
 
+class RuntimeStorageTests(unittest.TestCase):
+    def test_media_temp_root_stays_inside_the_project(self):
+        self.assertTrue(looping.runtime_temp_root().is_relative_to(BASE_DIR))
+
+
 def make_pet_photo(path: Path, size: int = 900, bg=(140, 160, 175)) -> Path:
     """A crude stand-in for a user upload: colored background, blob subject."""
     image = Image.new("RGB", (size, size), bg)

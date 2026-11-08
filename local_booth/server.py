@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import queue
 import secrets
 import socket
@@ -25,6 +26,16 @@ ROOT = Path(__file__).resolve().parent.parent
 LOCAL_ROOT = Path(__file__).resolve().parent
 RUNS_DIR = LOCAL_ROOT / "runs"
 UPLOADS_DIR = RUNS_DIR / "_uploads"
+RUNTIME_TMP_DIR = LOCAL_ROOT / "runtime_tmp"
+RUNTIME_CACHE_DIR = LOCAL_ROOT / "runtime_cache"
+RUNTIME_TMP_DIR.mkdir(parents=True, exist_ok=True)
+RUNTIME_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+os.environ["TMPDIR"] = str(RUNTIME_TMP_DIR)
+os.environ["TMP"] = str(RUNTIME_TMP_DIR)
+os.environ["TEMP"] = str(RUNTIME_TMP_DIR)
+os.environ["PETLOOP_TMPDIR"] = str(RUNTIME_TMP_DIR)
+os.environ["XDG_CACHE_HOME"] = str(RUNTIME_CACHE_DIR)
+sys.dont_write_bytecode = True
 MAX_UPLOAD_BYTES = 30 * 1024 * 1024
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(LOCAL_ROOT))

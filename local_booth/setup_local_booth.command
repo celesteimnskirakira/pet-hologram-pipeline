@@ -4,6 +4,17 @@ set -e
 SCRIPT_DIR="${0:A:h}"
 REPO_DIR="${SCRIPT_DIR:h}"
 VENV_DIR="$SCRIPT_DIR/.venv"
+RUNTIME_TMP="$SCRIPT_DIR/runtime_tmp"
+RUNTIME_CACHE="$SCRIPT_DIR/runtime_cache"
+
+mkdir -p "$RUNTIME_TMP" "$RUNTIME_CACHE/pip"
+export TMPDIR="$RUNTIME_TMP"
+export TMP="$RUNTIME_TMP"
+export TEMP="$RUNTIME_TMP"
+export PETLOOP_TMPDIR="$RUNTIME_TMP"
+export XDG_CACHE_HOME="$RUNTIME_CACHE"
+export PIP_CACHE_DIR="$RUNTIME_CACHE/pip"
+export PYTHONDONTWRITEBYTECODE=1
 
 cd "$REPO_DIR"
 echo "正在配置独立的本地全息体验台…"

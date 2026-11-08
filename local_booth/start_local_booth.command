@@ -4,6 +4,16 @@ set -e
 SCRIPT_DIR="${0:A:h}"
 REPO_DIR="${SCRIPT_DIR:h}"
 PYTHON="$SCRIPT_DIR/.venv/bin/python"
+RUNTIME_TMP="$SCRIPT_DIR/runtime_tmp"
+RUNTIME_CACHE="$SCRIPT_DIR/runtime_cache"
+
+mkdir -p "$RUNTIME_TMP" "$RUNTIME_CACHE"
+export TMPDIR="$RUNTIME_TMP"
+export TMP="$RUNTIME_TMP"
+export TEMP="$RUNTIME_TMP"
+export PETLOOP_TMPDIR="$RUNTIME_TMP"
+export XDG_CACHE_HOME="$RUNTIME_CACHE"
+export PYTHONDONTWRITEBYTECODE=1
 
 cd "$REPO_DIR"
 
@@ -29,5 +39,6 @@ if [[ ! -f "$REPO_DIR/.env" ]]; then
 fi
 
 echo "启动独立的本地全息体验台…"
+echo "运行临时文件：$RUNTIME_TMP"
 echo "关闭这个窗口即可停止；原 Holo Video Uploader.app 不受影响。"
 exec "$PYTHON" "$SCRIPT_DIR/server.py"

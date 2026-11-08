@@ -18,6 +18,8 @@ USB 传输如果遇到分块超时，体验台会自动清理残留串口数据�
 
 Mac 负责网页、队列、文件和 USB，因而不需要部署云服务器、域名、数据库或开放公网端口。生成模型本身仍需联网调用配置的 Ark/Agnes API。
 
+项目代码、上传照片、生成视频、运行临时帧和依赖缓存都保存在当前仓库所在磁盘。仓库位于 PB 时，运行数据固定写入 `local_booth/runs/`、`local_booth/runtime_tmp/` 和 `local_booth/runtime_cache/`，不会回退到 Mac 内置盘的 `/tmp`。
+
 ## 与原上传软件的隔离
 
 - 不启动、不导入、不修改 `Holo Video Uploader.app`。
@@ -49,7 +51,7 @@ Mac 负责网页、队列、文件和 USB，因而不需要部署云服务器、
 
 ```bash
 local_booth/.venv/bin/python local_booth/device_bridge.py input.mp4 \
-  --output /tmp/current.avi --convert-only
+  --output local_booth/runtime_tmp/current.avi --convert-only
 ```
 
 转换并真实推送到微雪：

@@ -20,6 +20,8 @@ from typing import Callable
 
 
 ProgressHook = Callable[[str, float], None]
+LOCAL_ROOT = Path(__file__).resolve().parent
+RUNTIME_TMP_DIR = LOCAL_ROOT / "runtime_tmp"
 # The current ESP32-S3 USB CDC receive buffer drops data when a host write is
 # larger than a few hundred bytes. Keep each write aligned with the firmware's
 # acknowledged 128-byte unit; reliability comes from whole-file retries below.
@@ -238,9 +240,10 @@ def convert_and_upload(
 
 
 def main() -> int:
+    RUNTIME_TMP_DIR.mkdir(parents=True, exist_ok=True)
     parser = argparse.ArgumentParser(description="独立微雪视频转换和 USB 推送")
     parser.add_argument("video", help="输入 MP4/MOV 视频")
-    parser.add_argument("--output", default="/tmp/local_booth_current.avi")
+    parser.add_argument("--output", default=str(RUNTIME_TMP_DIR / "local_booth_current.avi"))
     parser.add_argument("--port", default="")
     parser.add_argument("--convert-only", action="store_true")
     args = parser.parse_args()

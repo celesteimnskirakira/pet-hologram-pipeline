@@ -19,6 +19,22 @@ from pathlib import Path
 from PIL import Image, ImageChops, ImageStat
 
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_RUNTIME_TMP = PROJECT_ROOT / "local_booth" / "runtime_tmp"
+
+
+def runtime_temp_root() -> Path:
+    """Return a project-local temp root so media frames never spill to the Mac disk."""
+    configured = os.environ.get("PETLOOP_TMPDIR", "").strip()
+    root = Path(configured).expanduser() if configured else DEFAULT_RUNTIME_TMP
+    root.mkdir(parents=True, exist_ok=True)
+    return root.resolve()
+
+
+def _temporary_directory() -> tempfile.TemporaryDirectory:
+    return tempfile.TemporaryDirectory(dir=runtime_temp_root())
+
+
 class FFmpegMissing(RuntimeError):
     pass
 
@@ -230,7 +246,7 @@ def render_quad_hologram(
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
-    with tempfile.TemporaryDirectory() as tmp:
+    with _temporary_directory() as tmp:
         tmp_dir = Path(tmp)
         frames_in = tmp_dir / "in"
         frames_out = tmp_dir / "out"
@@ -292,7 +308,7 @@ def render_quad_hologram(
 def _sample_edges(video: str | Path, border_frac: float = 0.05) -> dict:
     info = probe(video)
     frames = info.get("frames") or 1
-    with tempfile.TemporaryDirectory() as tmp:
+    with _temporary_directory() as tmp:
         mid = extract_frame(video, max(0, frames // 2), Path(tmp) / "mid.png")
         image = Image.open(mid).convert("L")
         w, h = image.size
@@ -358,7 +374,7 @@ def measure_seam(video: str | Path, total_frames: int | None = None) -> SeamRepo
         raise ValueError(f"Cannot measure seam: video reports {frames} frames.")
     last_index = frames - 1
 
-    with tempfile.TemporaryDirectory() as tmp:
+    with _temporary_directory() as tmp:
         first_path = extract_frame(video, 0, Path(tmp) / "first.png")
         last_path = extract_frame(video, last_index, Path(tmp) / "last.png")
         first = Image.open(first_path).convert("RGB")
@@ -438,7 +454,7 @@ def measure_motion(video: str | Path, samples: int = 6) -> MotionReport:
         indices = [frames // 2]
 
     diffs: list[float] = []
-    with tempfile.TemporaryDirectory() as tmp:
+    with _temporary_directory() as tmp:
         base_path = extract_frame(video, 0, Path(tmp) / "base.png")
         base = Image.open(base_path).convert("RGB")
         for index in indices:

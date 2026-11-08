@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sys
 import tempfile
 import unittest
@@ -39,6 +40,18 @@ class LocalBoothTests(unittest.TestCase):
     def test_device_output_stays_in_local_job_directory(self) -> None:
         path = server.RUNS_DIR / "abc123" / "device" / "current.avi"
         self.assertTrue(path.is_relative_to(server.LOCAL_ROOT))
+
+    def test_all_runtime_storage_stays_beside_the_project(self) -> None:
+        for path in (
+            server.RUNS_DIR,
+            server.UPLOADS_DIR,
+            server.RUNTIME_TMP_DIR,
+            server.RUNTIME_CACHE_DIR,
+            device_bridge.RUNTIME_TMP_DIR,
+        ):
+            self.assertTrue(path.resolve().is_relative_to(server.LOCAL_ROOT.resolve()))
+        self.assertEqual(os.environ["TMPDIR"], str(server.RUNTIME_TMP_DIR))
+        self.assertEqual(os.environ["PETLOOP_TMPDIR"], str(server.RUNTIME_TMP_DIR))
 
     def test_port_error_is_clear(self) -> None:
         with self.assertRaisesRegex(device_bridge.DeviceBridgeError, "USB 串口不存在"):
