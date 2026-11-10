@@ -1,0 +1,28 @@
+[Unit]
+Description=Petta hologram generation API
+After=network-online.target petta-projection.service
+Wants=network-online.target
+Requires=petta-projection.service
+
+[Service]
+Type=simple
+User=petta
+Group=petta
+WorkingDirectory=/opt/petta/backend
+EnvironmentFile=/etc/petta/backend.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/opt/petta/backend/.venv/bin/python /opt/petta/backend/api_server.py --host 127.0.0.1 --port 8000
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/petta
+MemoryMax=1400M
+TasksMax=128
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

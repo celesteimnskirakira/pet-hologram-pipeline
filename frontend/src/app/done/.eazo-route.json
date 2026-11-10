@@ -1,0 +1,9 @@
+{
+  "route": "done",
+  "name": "完成",
+  "nav_type": "stack",
+  "parent": "generating",
+  "order_index": 3,
+  "icon": "monitor",
+  "summary": "生成完成，引导看硬件"
+}

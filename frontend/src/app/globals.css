@@ -1,0 +1,280 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans);
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+body {
+  font-family: var(--font-sans), "Inter", "Helvetica Neue", Arial, sans-serif;
+  /* Kill the ~300ms synthetic click delay on touch devices. */
+  touch-action: manipulation;
+}
+
+/* PETTA brand palette (design: 暖夜环境光·陪伴) */
+:root {
+  --petta-bg: #2b1d12;
+  --petta-bg-deep: #1e150f;
+  --petta-bg-warm: #5c3a22;
+  --petta-cream: #ede7e0;
+  --petta-lime: #c9f26b;
+  --petta-violet: #b79cf0;
+  --petta-peach: #ff8a5b;
+  --petta-muted: rgba(237, 231, 224, 0.62);
+  --petta-glass: rgba(237, 231, 224, 0.12);
+  --petta-line: rgba(237, 231, 224, 0.26);
+  --petta-shadow: 0 28px 80px rgba(0, 0, 0, 0.38);
+}
+
+/* Ambient warm-focus depth ground reused across every screen */
+.petta-ambient {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(255, 138, 91, 0.22) 0 9%, transparent 34%),
+    radial-gradient(circle at 42% 35%, rgba(183, 156, 240, 0.14) 0 10%, transparent 31%),
+    radial-gradient(circle at 62% 71%, rgba(201, 242, 107, 0.13) 0 5%, transparent 22%),
+    linear-gradient(160deg, #1e150f 0%, #2b1d12 40%, #5c3a22 100%);
+}
+.petta-ambient::before,
+.petta-ambient::after {
+  content: "";
+  position: absolute;
+  width: min(92vw, 520px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  filter: blur(34px);
+  opacity: 0.82;
+  transform: translate3d(0, 0, 0);
+  animation: petta-drift 11s ease-in-out infinite alternate;
+}
+.petta-ambient::before {
+  left: 50%;
+  top: 25%;
+  margin-left: -46vw;
+  background: radial-gradient(circle, rgba(255, 138, 91, 0.5), rgba(255, 138, 91, 0.08) 45%, transparent 72%);
+}
+.petta-ambient::after {
+  right: -20%;
+  bottom: 5%;
+  background: radial-gradient(circle, rgba(183, 156, 240, 0.34), rgba(201, 242, 107, 0.08) 38%, transparent 70%);
+  animation-duration: 15s;
+  animation-delay: -3s;
+}
+.petta-grain {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.16;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.22) 0.6px, transparent 0.7px);
+  background-size: 4px 4px;
+  mix-blend-mode: overlay;
+}
+
+@keyframes petta-drift {
+  to {
+    transform: translate3d(8%, -5%, 0) scale(1.08);
+  }
+}
+@keyframes petta-floaty {
+  50% {
+    transform: translateY(-18px) rotate(8deg);
+  }
+}
+/* High/simple/looping loading motion: breathing halo ring */
+@keyframes petta-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  50% {
+    transform: scale(1.14);
+    opacity: 1;
+  }
+}
+@keyframes petta-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes petta-orbit {
+  to {
+    transform: rotate(-360deg);
+  }
+}
+@keyframes petta-pulse-dot {
+  0%,
+  100% {
+    opacity: 0.28;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes petta-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+/* Holographic viewfinder corner-bracket glow (upload capture frame) */
+@keyframes petta-corner-glow {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .petta-ambient::before,
+  .petta-ambient::after {
+    animation: none !important;
+  }
+}
+
+/* Prevent iOS WKWebView focus auto-zoom on form controls below the sm breakpoint.
+ * `!important` is required: Tailwind utility classes (text-sm, text-[15px]) outrank
+ * type selectors on specificity, and `@media` doesn't change that. */
+@media (max-width: 640px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+:root {
+  --background: #2b1d12;
+  --foreground: #ffffff;
+  --card: rgba(237, 231, 224, 0.12);
+  --card-foreground: #ffffff;
+  --popover: #241811;
+  --popover-foreground: #ffffff;
+  --primary: #ede7e0;
+  --primary-foreground: #23170f;
+  --secondary: rgba(237, 231, 224, 0.16);
+  --secondary-foreground: #ede7e0;
+  --muted: rgba(237, 231, 224, 0.12);
+  --muted-foreground: rgba(237, 231, 224, 0.62);
+  --accent: #c9f26b;
+  --accent-foreground: #1d170f;
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: rgba(237, 231, 224, 0.26);
+  --input: rgba(237, 231, 224, 0.2);
+  --ring: #c9f26b;
+  --chart-1: #c9f26b;
+  --chart-2: #ff8a5b;
+  --chart-3: #b79cf0;
+  --chart-4: #ede7e0;
+  --chart-5: oklch(0.269 0 0);
+  --radius: 1rem;
+  --sidebar: #241811;
+  --sidebar-foreground: #ede7e0;
+  --sidebar-primary: #c9f26b;
+  --sidebar-primary-foreground: #1d170f;
+  --sidebar-accent: rgba(237, 231, 224, 0.12);
+  --sidebar-accent-foreground: #ede7e0;
+  --sidebar-border: rgba(237, 231, 224, 0.26);
+  --sidebar-ring: #c9f26b;
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}

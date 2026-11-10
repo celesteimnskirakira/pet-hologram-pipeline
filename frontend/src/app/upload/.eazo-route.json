@@ -1,0 +1,9 @@
+{
+  "route": "upload",
+  "name": "上传照片",
+  "nav_type": "stack",
+  "parent": "",
+  "order_index": 1,
+  "icon": "image-up",
+  "summary": "上传宠物照片并开始生成"
+}

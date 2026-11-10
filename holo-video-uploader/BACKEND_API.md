@@ -43,6 +43,10 @@ Authorization: Bearer <optional-token>
 {"id":"video-20260829-001","status":"played"}
 ```
 
+The app records an item as processed only after this acknowledgement succeeds.
+If the acknowledgement fails, automatic receive retries the item instead of
+silently leaving the backend in a delivery state.
+
 ## Option B: return MP4 directly
 
 ```http
@@ -61,6 +65,8 @@ Content-Disposition: attachment; filename="sleeping-cat.mp4"
 - Production endpoints must use HTTPS.
 - An optional token entered in the app is sent as `Authorization: Bearer ...`.
 - The token is kept only for the current app session and is not saved to disk.
+- Managed launches may provide the same session-only token through
+  `HOLO_DEVICE_TOKEN`; `HOLO_AUTO_RECEIVE=1` enables polling immediately.
 - For JSON responses, the token is forwarded to `download_url` only when it uses the same host as the API endpoint.
 - The same host restriction applies to `ack_url`.
 - `http://localhost` and `http://127.0.0.1` are accepted only for local development.

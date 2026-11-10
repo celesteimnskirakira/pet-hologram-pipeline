@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1787991821892,
+      "tag": "0000_absurd_tomorrow_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1788060000000,
+      "tag": "0001_generation_delivery",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788063600000,
+      "tag": "0002_remove_simulated_duration",
+      "breakpoints": true
+    }
+  ]
+}

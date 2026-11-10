@@ -1,0 +1,28 @@
+[Unit]
+Description=PETTA standalone Next.js frontend
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=petta
+Group=petta
+WorkingDirectory=/opt/petta/frontend
+EnvironmentFile=/etc/petta/frontend.env
+Environment=NODE_ENV=production
+Environment=HOSTNAME=127.0.0.1
+Environment=PORT=3000
+ExecStart=/usr/local/bin/node /opt/petta/frontend/server.js
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=20
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/petta/frontend
+MemoryMax=700M
+TasksMax=256
+
+[Install]
+WantedBy=multi-user.target
